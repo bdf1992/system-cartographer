@@ -5,7 +5,9 @@
     "**/*pipeline*",
     "**/*cron*",
     "**/.claude/commands/*",
+    "commands/*",
     "**/.claude/settings.json",
+    "settings.json",
     "**/.github/workflows/**"
   ],
   "edge_patterns": [

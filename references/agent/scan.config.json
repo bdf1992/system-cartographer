@@ -9,7 +9,7 @@
   "edge_patterns": [
     {
       "kind": "tool_grant",
-      "regex": "\\btools?:\\s*\\[([^\\]]+)\\]"
+      "regex": "\\btools?:\\s*\\[?([^\\]\\n]+)\\]?"
     }
   ]
 }

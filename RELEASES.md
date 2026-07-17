@@ -1,5 +1,46 @@
 # Releases
 
+## 1.2.3 (2026-07-17)
+
+Premise check: does the tool actually map a real agentic system, not just run without
+crashing? Pointed it at `graey/.claude/` — 15 real Claude Code subagent definitions, a
+`settings.json` with real hooks, real commands — the exact evidence set
+`host-environments.md`'s own Claude Code row names. First result: **zero edges across
+all eleven concerns.** Two compounding bugs, both load-bearing:
+
+- **`agent`'s `tool_grant` pattern never matched real Claude Code frontmatter.** It
+  required bracket syntax (`tools: [Read, Write]`); every real subagent file in this
+  repo (and, per `host-environments.md`, this tool's own native host) writes a bare
+  comma list (`tools: Read, Write, Edit, Bash, Grep, Glob`) instead. The concern found
+  all 15 files as candidates and extracted zero tool grants from any of them — "Agent",
+  one of the three first-class object types `SKILL.md` opens with, silently couldn't
+  do its one job against the most common real-world case. Regex now accepts both forms
+  (`\[?([^\]\n]+)\]?`), verified to still handle the bracketed form unchanged.
+- **`workflow` and `memories` found zero candidate files at all**, because their
+  configs anchor on `**/.claude/...` — written assuming `.claude/` is a *nested*
+  ancestor of the scan root (a repo-root scan). Point `--target` at `.claude/` itself
+  — a natural, common choice, the row directly above in the same doc — and the anchor
+  segment is consumed by being the root, so it can never appear in a relative path
+  again. `workflow` gained root-relative fallbacks (`commands/*`, `settings.json`)
+  alongside the nested forms; `memories` gained a scoped, justified addition
+  (`settings.local.json`, matching its own interrogation question — session-local
+  config, different authority than the shared file) rather than a blanket `**`, which
+  would fix this one target shape by breaking every other target's specificity.
+  `host-environments.md` now names the remaining gap honestly instead of implying it's
+  fully solved.
+
+Verified live, against ground truth already visible earlier in this exact session: the
+scan's extracted tool grants for `agents/analytical-admin.md`
+(`Read, Bash, Grep, Glob, Agent`) match the real agent roster shown at session start,
+and the extracted hook names (`SessionStart, UserPromptSubmit, PreToolUse,
+PostToolUse`) match hooks that actually fired earlier in this conversation. Built the
+full bundle end to end: `agent`/`workflow`/`memories` went from 0/0/0 to 15/8/1
+evidenced files and 0 to 18 real edges; `cross-cutting` now correctly flags
+`settings.json` as coupling three concerns at once; the README's "Points beyond this
+map" section correctly surfaces that the 15 agent-role prompts all point outward to the
+real enforcement machinery in `tools/session/`, `tools/sign/`, and
+`workspace/descent/` — which is the actual premise this tool exists for.
+
 ## 1.2.2 (2026-07-17)
 
 Cut the boundary-pointer false-positive noise two ways — a small regex improvement,

@@ -18,3 +18,17 @@ capability with separate authority.
 
 Use the environment descriptor and a run-local registry overlay for additional host
 detail; do not make a host's private paths part of the maintained core.
+
+**Scanning an evidence root directly, not its parent, loses some breadth.** Several
+shipped concern configs match paths like `**/.claude/settings.json` — patterns written
+assuming `.claude/` is a *nested* ancestor of the scan root (a repo-root scan). Point
+`--target` at `.claude/` itself (a natural, common choice — it's the row above) and
+those patterns can't match: the `.claude` segment they anchor on was consumed by being
+the root, so the relative paths the scanner sees never contain it. `agent` (tool-scope
+extraction) and `workflow` (commands/settings-driven hooks) both carry a bare,
+root-relative fallback pattern for this reason (fixed live, 1.2.3); `memories`'s
+broad `**/.claude/**` catch-all does not, since a topology-symmetric equivalent would
+have to be an unscoped `**` — correct for this one target shape, wrong for every other.
+Prefer scanning from the repo root when a concern's breadth matters more than the
+target being tightly bounded; a `--registry` overlay can restore full breadth for a
+narrower root when it doesn't.
