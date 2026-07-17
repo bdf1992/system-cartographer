@@ -298,7 +298,7 @@ def git_log(root, limit=200):
     return rows
 
 
-def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evidence, boundary_pointers=()):
+def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evidence, boundary_pointers=(), boundary_pointers_unresolved_dropped=0):
     candidate_pairs = Counter()
     evidence_pairs = Counter()
     hotspots = []
@@ -349,6 +349,7 @@ def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evid
                 1 for p in boundary_pointers
                 if p["exists"] and p["relation"] != "unresolved" and not p.get("disposition")
             ),
+            "boundary_pointers_unresolved_dropped": boundary_pointers_unresolved_dropped,
         },
         "candidate_concern_coverage": dict(sorted(candidate_coverage.items())),
         "evidenced_concern_coverage": dict(sorted(evidence_coverage.items())),
@@ -372,9 +373,12 @@ def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evid
             "A hotspot is a question target: ask whether its multiple roles are intentional.",
             "Unclassified files expose registry/config blind spots; they are not evidence of irrelevance.",
             "Pattern counts describe the observation instrument as well as the target.",
-            "boundary_pointers names every path-shaped reference this scan found pointing outside its "
-            "own root (elder/ancestor, sibling, cousin, or unresolved) — see references/boundary-protocol.md. "
-            "A card is not done while a load-bearing pointer here carries no disposition.",
+            "boundary_pointers names every path-shaped reference this scan found that actually resolved "
+            "outside its own root (ancestor, sibling, or cousin) — see references/boundary-protocol.md. "
+            "A card is not done while a load-bearing pointer here carries no disposition. Candidates that "
+            "never resolved to anything real (prose false positives) are dropped by default — see "
+            "boundary_pointers_unresolved_dropped in summary, or rerun with "
+            "--include-unresolved-boundary-pointers to inspect them (useful when tuning --boundary-config).",
         ],
     }
 
@@ -530,10 +534,16 @@ def scan(args):
         if item.get("scanner", {}).get("evidence_mode") in {"node", "node-or-edge"}
         or (item["id"] in configs and not configs[item["id"]].get("edge_patterns"))
     }
-    boundary_pointers = build_boundary_pointers(all_boundary_edges, root)
-    if getattr(args, "follow_boundaries", False) and boundary_pointers:
-        follow_boundary_pointers(boundary_pointers, args)
-    patterns = build_patterns(records, all_edges, sorted(graphs), environment_gaps, node_evidence, boundary_pointers)
+    boundary_pointers_all = build_boundary_pointers(all_boundary_edges, root)
+    if getattr(args, "follow_boundaries", False) and boundary_pointers_all:
+        follow_boundary_pointers(boundary_pointers_all, args)
+    if getattr(args, "include_unresolved_boundary_pointers", False):
+        boundary_pointers, boundary_pointers_dropped = boundary_pointers_all, 0
+    else:
+        boundary_pointers = [p for p in boundary_pointers_all if p["exists"]]
+        boundary_pointers_dropped = len(boundary_pointers_all) - len(boundary_pointers)
+    patterns = build_patterns(records, all_edges, sorted(graphs), environment_gaps, node_evidence,
+                               boundary_pointers, boundary_pointers_dropped)
     shared = defaultdict(set)
     for cid, graph in graphs.items():
         for node in graph.get("nodes", []):
@@ -598,6 +608,9 @@ def main():
                     help="Take one real sub-scan hop into resolved ancestor/sibling/cousin pointers (bounded, opt-in)")
     ap.add_argument("--max-boundary-follow", type=int, default=8,
                     help="Cap on how many boundary pointers --follow-boundaries actually scans")
+    ap.add_argument("--include-unresolved-boundary-pointers", action="store_true",
+                    help="Also emit boundary-pointer candidates that never resolved to anything real "
+                         "(prose false positives) — dropped by default; useful when tuning --boundary-config")
     args = ap.parse_args()
     try:
         result = scan(args)

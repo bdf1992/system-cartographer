@@ -34,8 +34,15 @@ for that third base. Confirmed live: the same `workspace/reception` scan surface
 resolved pointers launched from elsewhere and 38 launched from the graey repo root.
 
 The directory-token pattern is the noisiest of the three by construction — it has no
-extension to anchor on, so ordinary slash-separated prose ("Read/Glob/Grep",
-"blocker/fork") matches the same shape a real path does. This is deliberately still
+extension to anchor on, so ordinary slash-separated prose matches the same shape a real
+path does. Two cheap, zero-recall-cost filters are applied to cut the worst of it: every
+segment must start lowercase (kills Title-Case/ALL-CAPS enumerations like
+"Agents/Skills/Workflows" or "TODO/FIXME" — real directory names in this ecosystem are
+lowercase, so this never drops a genuine path), and a match immediately followed by a
+copula ("mode/value/status **are** filled by...") is rejected. What's left
+("blocker/fork", "claim/file" — lowercase word-pairs used as English shorthand for "or")
+is genuinely undecidable from a real path by regex alone, since real lowercase
+kebab-case directory names have the identical shape. This is deliberately still
 included: false hits resolve to nothing on disk and land in the `unresolved` bucket,
 which never blocks the export gate (only pointers that actually resolved to something
 real do). Expect `unresolved` to run noisy and treat it as a hint list, not a findings

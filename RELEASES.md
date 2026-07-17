@@ -1,5 +1,43 @@
 # Releases
 
+## 1.2.2 (2026-07-17)
+
+Cut the boundary-pointer false-positive noise two ways — a small regex improvement,
+then the actual fix underneath it.
+
+The real fix: `cartographer_scan.py` was emitting every regex candidate into
+`patterns.json["boundary_pointers"]`, including ones that never resolved to anything on
+disk — the tool already computes ground truth (`resolve_boundary_target` checks the real
+filesystem) but wasn't using it to decide what to report, only what to gate on. It now
+does: unresolved candidates (prose false positives — never real paths, never load-
+bearing, never gated on) are dropped from the emitted list by default, with the dropped
+count reported plainly (`summary.boundary_pointers_unresolved_dropped`) rather than
+hidden — nothing silently vanishes, it's just no longer mixed in with actual findings.
+`--include-unresolved-boundary-pointers` opts back into the full noisy list, for anyone
+tuning `--boundary-config` who needs to see what the patterns are over/under-matching.
+Verified live on `workspace/reception`: default output went from 84 boundary pointers
+(38 real + 46 noise) to exactly 38 — 100% signal — with the flag reproducing the
+original 84. The 38 real, gate-relevant pointers are byte-for-byte unchanged; every
+downstream consumer (`state.py`'s `shared` gate, `bundle_synopsis.py`'s README) already
+filtered on resolution status internally, so nothing downstream had to change.
+
+Smaller, first-pass improvement, kept because it still helps the (now opt-in) full
+list: tightened `path_dir_token` in `references/boundary.scan.json`, the noisiest of
+the three detection patterns, which previously matched any `word/word` shape regardless
+of case or context. Every segment must now start lowercase (real directory names in
+this ecosystem are lowercase; kills Title-Case/ALL-CAPS prose lists like
+`Agents/Skills/Workflows` or `TODO/FIXME` outright), and a match immediately followed by
+a copula (`mode/value/status **are** filled by...`) is rejected. What's left
+(`blocker/fork`, `claim/file` — lowercase English word-pairs used as shorthand for "or")
+is genuinely undecidable from a real path by regex alone, since real kebab-case
+directory names have the identical shape — `boundary-protocol.md` says so explicitly
+now instead of citing a since-fixed example. This mattered more before the real fix
+above (it shrank the noise that used to ship by default); now it just shrinks what
+`--include-unresolved-boundary-pointers` shows.
+
+No contract change to the `shared` gate either way: unresolved pointers never blocked
+it before this release and still don't.
+
 ## 1.2.1 (2026-07-17)
 
 Release-readiness pass — no behavior contract changes, patch bump. Found by driving the
