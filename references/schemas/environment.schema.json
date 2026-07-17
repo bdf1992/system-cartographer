@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:system-cartographer:environment:1",
+  "title": "Cartographer environment descriptor",
+  "type": "object",
+  "required": ["schema_version", "host", "runtime", "capabilities", "roots", "questions"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "host": {
+      "type": "object",
+      "required": ["id", "confidence"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "confidence": {"enum": ["declared", "detected", "unknown"]},
+        "evidence": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "model": {
+      "type": ["object", "null"],
+      "properties": {
+        "provider": {"type": ["string", "null"]},
+        "name": {"type": ["string", "null"]},
+        "source": {"enum": ["declared", "detected", "unknown"]}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["python", "platform"],
+      "properties": {
+        "python": {"type": "string"},
+        "platform": {"type": "string"},
+        "working_directory": {"type": "string"}
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "source"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+          "status": {"enum": ["available", "unavailable", "unknown", "restricted"]},
+          "source": {"enum": ["declared", "detected", "inferred"]},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "roots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "role", "authority"],
+        "properties": {
+          "path": {"type": "string"},
+          "role": {"enum": ["target", "evidence", "output", "config"]},
+          "authority": {"enum": ["read", "write", "read-write", "unknown"]}
+        }
+      }
+    },
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "question", "blocks"],
+        "properties": {
+          "id": {"type": "string"},
+          "question": {"type": "string"},
+          "blocks": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

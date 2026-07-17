@@ -1,0 +1,9 @@
+{
+  "include": [
+    "**/memor*/**",
+    "**/.claude/**",
+    "**/session*",
+    "**/*state*.json"
+  ],
+  "edge_patterns": []
+}

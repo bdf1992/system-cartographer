@@ -1,0 +1,7 @@
+{
+  "include": [],
+  "exclude": [],
+  "edge_patterns": [],
+  "use_git_log": true,
+  "git_log_limit": 200
+}

@@ -1,0 +1,115 @@
+# Releases
+
+## 1.2.1 (2026-07-17)
+
+Release-readiness pass — no behavior contract changes, patch bump. Found by driving the
+whole phase lifecycle for real (self-scan plus a second live run against
+`workspace/reception` in the graey repo, through probe, scan, telemetry, every state
+transition, disposition, `--follow-boundaries`, and the registry validate/propose
+commands) rather than reading the code. Five fixes, all bugs the dogfooding actually
+hit, none design changes:
+
+- **Bundle paths were not portable.** `export_bundle.py` wrote `manifest.json`'s
+  `export` field with `os.path.join`, which emits backslashes on Windows — baked
+  straight into `README.md` and `handoff.json` too. A bundle whose entire purpose is
+  "content that travels" (`SKILL.md`) shipped Windows-only relative paths by default.
+  Now always forward-slash, OS-independent.
+- **The skill's own quickstart crashed on first use.** `environment_probe.py --out
+  <run>/environment.json` — the literal first command in `SKILL.md` — raised a raw
+  `FileNotFoundError` traceback whenever `<run>` hadn't been created yet, instead of
+  creating it like `cartographer_scan.py`'s writer already does. `session_telemetry.py
+  --out` had the same gap. Both now create the parent directory first.
+- **Inconsistent text encoding.** `state.py`, `session_telemetry.py`,
+  `bundle_synopsis.py`, and `export_bundle.py` had file reads/writes with no explicit
+  `encoding="utf-8"`, unlike the rest of the codebase. Latent: this host's Python
+  defaults to UTF-8 mode so it didn't reproduce here, but the generated docs contain
+  non-ASCII punctuation (em dashes, arrows) and the tool's whole premise is running
+  across arbitrary hosts — a legacy-codepage Windows box would mojibake or crash on
+  its own README. Normalized to the `encoding="utf-8"` convention already used
+  elsewhere.
+- **`state.py disposition <id>` didn't strip its argument.** A trailing CR/whitespace
+  on the id (easy to pick up from Windows text tooling) silently recorded the
+  disposition under the wrong key, so `advance shared` kept reporting the pointer as
+  undispositioned with no clue why the disposition that was just recorded didn't
+  count. Now stripped before use.
+
+Verified live: fresh runs of the full pipeline (uncreated run dir → probe → scan →
+telemetry → init → negotiate → elicit(skip) → export → synopsis → exported →
+`shared` blocked on 38 real undispositioned pointers → disposition each → `shared`
+succeeds → synopsis regenerated with dispositions shown) against two targets, plus
+`--follow-boundaries` (capped hop confirmed, file-type pointers correctly left
+unexpanded) and `concern_registry.py validate`/`propose`. Confirmed as design, not
+touched: the noisy `path_dir_token` boundary-pointer false-positive rate on prose
+(`boundary-protocol.md` already documents and contains it — never blocks the gate,
+never shown in `README.md`) and the "scan's own launch directory" resolution base
+(works exactly as documented when the scan is launched from the target's repo root,
+reproduced both the miss and the hit).
+
+## 1.2.0 (2026-07-17)
+
+Boundary pointers. A live run against `workspace/reception` in the graey repo (a real
+QA-agent commissioning) surfaced a structural gap by luck: the target's own docs named
+the code that actually implements it (`tools/session/{claim,route}.py` and the
+SessionStart hook chain), but that code lives outside the declared root and the scan
+never said so — a card built from that run would have silently omitted what its target
+depends on, failing the replication test it's supposed to pass. `cartographer_scan.py`
+now detects this by default, every run, at no extra walk: every file already read for
+any concern is also checked against `references/boundary.scan.json`'s path-reference
+patterns, each match resolved and classified relative to the target root (ancestor /
+sibling / cousin / unresolved), deduplicated, and given a cheap automatic peek —
+emitted as `patterns.json["boundary_pointers"]`. Naming is unconditional; actually
+scanning what a pointer names is a separate, explicit opt-in (`--follow-boundaries`,
+capped by `--max-boundary-follow`, exactly one hop, no crawl) — this is the resolution
+of the tension between "the map must say what it doesn't cover" and "never read outside
+the declared root by surprise" (`environment-protocol.md`'s authority boundary).
+`state.py` gained a `disposition` subcommand and now refuses to advance a bundle to
+`shared` while any resolved boundary pointer carries none (included / excluded /
+deferred, with a reason) — the same enforcement shape it already used for
+README.md/handoff.json and secret warnings, not a new mechanism. `bundle_synopsis.py`
+surfaces the same list as a "Points beyond this map" section and a hard-gated
+`handoff.json` action. New: `references/boundary-protocol.md`. Minor bump: additive
+fields only (`boundary_pointers` in patterns.json, new CLI flags default to current
+behavior when omitted except the new hard gate at `shared`, which only fires when a
+bundle actually carries boundary evidence) — no existing fills or concern contracts
+invalidated.
+
+## 1.1.0 (2026-07-17)
+
+Bundle review surfaces. New `scripts/bundle_synopsis.py` generates `README.md` (human
+synopsis: state history, findings at a glance, review items, next actions) and
+`handoff.json` (agent surface: typed actions with owner human|agent and commands where
+mechanical, pending states, unresolved secret warnings, artifact index) from the
+bundle's own contents. `state.py` now refuses to advance a bundle to `shared` unless
+both surfaces exist. Minor bump: no existing fills or contracts invalidated.
+
+## 1.0.0 — "First Light" (2026-07-17)
+
+First versioned release, cut after the inaugural commissioning run (the cartographer
+pointed at its own tree — first light verifies the optics on a known object; it is not
+a survey). Lineage: v0.x iterations in-conversation (Cowork/Claude), architectural fork
+(registry-driven concerns, environment negotiation, single-pass scanner), then this
+polish: session-quality instrument restored (`scripts/session_telemetry.py`),
+`produced_by` stamping on every emitted artifact, versioning semantics written down,
+founding concern statuses made honest (provisional until evidenced by a real run, per
+the registry's own promotion rule).
+
+## Versioning semantics
+
+- **Skill version** lives in `VERSION` (semver). Every artifact the skill emits — scan
+  results, telemetry, bundle manifests, state transitions — carries a `produced_by`
+  block with the skill version (and, where computed, the registry signature). A
+  resuming or receiving agent compares those stamps against its own copies before
+  trusting fills; a mismatch is drift to reconcile, not to ignore.
+- **Concern versions** (X.Y in the registry): bump **minor** for changes that do not
+  invalidate existing fills (glob/config widening, prose clarification, added edge
+  patterns). Bump **major** (X) when the interrogation question's meaning, the type, or
+  cares_about changes — existing fills recorded under the old version become
+  `discovered`-at-best and must be re-elicited. Per-fill provenance records
+  `concern@version` so this is checkable mechanically.
+- **Status ladder** (`provisional` → `stable`): a concern is promoted only after it has
+  survived a real run — produced evidence, or a defensible structured absence, against
+  a real target. The founding twelve entered 1.0.0 as provisional; those evidenced by
+  the First Light commissioning run were promoted in this release, the rest remain
+  provisional until the first field run (the QA-agent cartography) exercises them.
+- **Registry schema_version** changes only with breaking contract changes and requires
+  a migration note here.

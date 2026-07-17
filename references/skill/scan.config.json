@@ -1,0 +1,12 @@
+{
+  "include": [
+    "**/SKILL.md",
+    "**/*.skill"
+  ],
+  "edge_patterns": [
+    {
+      "kind": "frontmatter_description",
+      "regex": "^description:\\s*(.+)$"
+    }
+  ]
+}

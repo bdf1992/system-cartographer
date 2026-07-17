@@ -1,0 +1,16 @@
+{
+  "include": [
+    "**/*.py",
+    "**/*.js",
+    "**/*.ts",
+    "**/CHANGELOG*"
+  ],
+  "edge_patterns": [
+    {
+      "kind": "todo_marker",
+      "regex": "\\b(TODO|FIXME|XXX)\\b[:\\s]*(.*)"
+    }
+  ],
+  "use_git_log": true,
+  "git_log_limit": 100
+}

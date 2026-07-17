@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:system-cartographer:concern:1",
+  "title": "Registered cartography concern",
+  "type": "object",
+  "required": ["id", "version", "type", "title", "question", "scanner", "requires", "produces", "status"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+    "type": {"enum": ["actor", "instruction", "sequence", "artifact", "dependency", "integration", "memory", "telemetry", "exemplar", "failure", "distribution", "relation", "environment", "custom"]},
+    "title": {"type": "string", "minLength": 1},
+    "question": {"type": "string", "minLength": 1},
+    "card": {"type": "string"},
+    "scanner": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["regex-graph", "join", "external", "conversation"]},
+        "config": {"type": "string"},
+        "evidence_mode": {"enum": ["node", "edge", "node-or-edge"]},
+        "command": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "requires": {"type": "array", "items": {"type": "string"}},
+    "produces": {"type": "array", "items": {"type": "string"}},
+    "depends_on": {"type": "array", "items": {"type": "string"}},
+    "status": {"enum": ["stable", "provisional", "disabled"]},
+    "signal": {"type": "string"},
+    "registration_questions": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

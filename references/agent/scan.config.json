@@ -1,0 +1,15 @@
+{
+  "include": [
+    "**/*agent*.md",
+    "**/*agent*.json",
+    "**/*persona*.md",
+    "**/system-prompt*",
+    "**/SYSTEM*.md"
+  ],
+  "edge_patterns": [
+    {
+      "kind": "tool_grant",
+      "regex": "\\btools?:\\s*\\[([^\\]]+)\\]"
+    }
+  ]
+}

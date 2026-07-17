@@ -1,0 +1,12 @@
+interface:
+  display_name: System Cartographer
+  short_description: Map tacit AI systems across environments
+  default_prompt: Use $system-cartographer to negotiate this environment, map the
+    system, and show me its evidence-backed patterns and deltas.
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

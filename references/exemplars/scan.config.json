@@ -1,0 +1,11 @@
+{
+  "include": [
+    "**/*test*",
+    "**/*eval*",
+    "**/*example*",
+    "**/*.log"
+  ],
+  "edge_patterns": [],
+  "use_git_log": true,
+  "git_log_limit": 30
+}

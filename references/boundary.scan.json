@@ -1,0 +1,8 @@
+{
+  "description": "Concern-agnostic path-reference patterns. Applied to every file already read by an active concern, on top of that concern's own edge_patterns — this is how the scan notices a target pointing at code/docs outside its own declared root. See references/boundary-protocol.md.",
+  "edge_patterns": [
+    { "kind": "path_token", "regex": "(?<![\\w./\\\\:@])((?:[A-Za-z0-9_.\\-]+/){1,}[A-Za-z0-9_.\\-]+\\.[A-Za-z0-9]{1,6})(?![\\w/])" },
+    { "kind": "md_link", "regex": "\\]\\(([^)\\s]+\\.[A-Za-z0-9]{1,6})(?:#[^)]*)?\\)" },
+    { "kind": "path_dir_token", "regex": "(?<![\\w./\\\\:@])((?:[A-Za-z_][A-Za-z0-9_\\-]{2,}/){1,}[A-Za-z_][A-Za-z0-9_\\-]{2,})(?![\\w/.])" }
+  ]
+}

@@ -1,0 +1,267 @@
+{
+  "schema_version": "1.0",
+  "concerns": [
+    {
+      "id": "code-scripts",
+      "version": "1.0",
+      "type": "artifact",
+      "title": "Code and scripts",
+      "question": "What implements the actual behavior?",
+      "card": "code-scripts/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "code-scripts/scan.config.json",
+        "evidence_mode": "node"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "stable"
+    },
+    {
+      "id": "required-tools-repos",
+      "version": "1.0",
+      "type": "dependency",
+      "title": "Required tools and repositories",
+      "question": "What tools, repositories, and knowledge must be present?",
+      "card": "required-tools-repos/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "required-tools-repos/scan.config.json",
+        "evidence_mode": "edge"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "agent",
+      "version": "1.0",
+      "type": "actor",
+      "title": "Agent",
+      "question": "Is this an actor, and what authority and scope does it have?",
+      "card": "agent/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "agent/scan.config.json",
+        "evidence_mode": "node-or-edge"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "stable"
+    },
+    {
+      "id": "skill",
+      "version": "1.0",
+      "type": "instruction",
+      "title": "Skill",
+      "question": "What invokes this instruction package and when?",
+      "card": "skill/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "skill/scan.config.json",
+        "evidence_mode": "node-or-edge"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "stable"
+    },
+    {
+      "id": "workflow",
+      "version": "1.0",
+      "type": "sequence",
+      "title": "Workflow",
+      "question": "What triggers, orders, branches, and ends the work?",
+      "card": "workflow/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "workflow/scan.config.json",
+        "evidence_mode": "node-or-edge"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "stable"
+    },
+    {
+      "id": "integrations",
+      "version": "1.0",
+      "type": "integration",
+      "title": "Integrations",
+      "question": "Which external systems can be read or changed?",
+      "card": "integrations/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "integrations/scan.config.json",
+        "evidence_mode": "edge"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "stable"
+    },
+    {
+      "id": "memories",
+      "version": "1.0",
+      "type": "memory",
+      "title": "Memories",
+      "question": "What context survives across runs and under whose authority?",
+      "card": "memories/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "memories/scan.config.json",
+        "evidence_mode": "node"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "stable"
+    },
+    {
+      "id": "session-quality",
+      "version": "1.0",
+      "type": "telemetry",
+      "title": "Session count and quality",
+      "question": "What does the usage history say about frequency, recency, and convergence?",
+      "card": "session-quality/card.md",
+      "scanner": {
+        "kind": "external",
+        "command": [
+          "python3",
+          "scripts/session_telemetry.py"
+        ]
+      },
+      "requires": [
+        "git.read"
+      ],
+      "produces": [
+        "evidence.telemetry"
+      ],
+      "depends_on": [],
+      "status": "stable"
+    },
+    {
+      "id": "exemplars",
+      "version": "1.0",
+      "type": "exemplar",
+      "title": "Exemplars",
+      "question": "Which real run best demonstrates fitness?",
+      "card": "exemplars/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "exemplars/scan.config.json",
+        "evidence_mode": "node"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "issues",
+      "version": "1.0",
+      "type": "failure",
+      "title": "Issues",
+      "question": "What breaks, and which invariant does the break violate?",
+      "card": "issues/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "issues/scan.config.json",
+        "evidence_mode": "edge"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "shareability",
+      "version": "1.0",
+      "type": "distribution",
+      "title": "Shareability",
+      "question": "Who must receive this knowledge, through which reachable channel?",
+      "card": "shareability/card.md",
+      "scanner": {
+        "kind": "regex-graph",
+        "config": "shareability/scan.config.json",
+        "evidence_mode": "node-or-edge"
+      },
+      "requires": [
+        "filesystem.read"
+      ],
+      "produces": [
+        "evidence.graph"
+      ],
+      "depends_on": [],
+      "status": "stable"
+    },
+    {
+      "id": "cross-cutting",
+      "version": "1.0",
+      "type": "relation",
+      "title": "Cross-cutting concerns",
+      "question": "Which conditions must hold across neighboring objects?",
+      "card": "cross-cutting/card.md",
+      "scanner": {
+        "kind": "join"
+      },
+      "requires": [],
+      "produces": [
+        "evidence.couplings"
+      ],
+      "depends_on": [
+        "code-scripts",
+        "required-tools-repos",
+        "agent",
+        "skill",
+        "workflow",
+        "integrations",
+        "memories",
+        "session-quality",
+        "exemplars",
+        "issues",
+        "shareability"
+      ],
+      "status": "stable"
+    }
+  ]
+}

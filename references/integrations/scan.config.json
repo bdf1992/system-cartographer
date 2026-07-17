@@ -1,0 +1,23 @@
+{
+  "include": [
+    "**/*.py",
+    "**/*.js",
+    "**/*.ts",
+    "**/*.json",
+    "**/*.env*"
+  ],
+  "edge_patterns": [
+    {
+      "kind": "mcp_tool",
+      "regex": "\\bmcp__([\\w_]+)__[\\w_]+\\b"
+    },
+    {
+      "kind": "known_system",
+      "regex": "\\b(jira|github|confluence|slack|gmail)\\b"
+    },
+    {
+      "kind": "http_call",
+      "regex": "https?://([\\w\\.\\-]+)"
+    }
+  ]
+}

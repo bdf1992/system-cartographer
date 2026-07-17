@@ -1,0 +1,18 @@
+{
+  "include": [
+    "**/*.workflow.js",
+    "**/*workflow*",
+    "**/*pipeline*",
+    "**/*cron*",
+    "**/.claude/commands/*",
+    "**/.claude/settings.json",
+    "**/.github/workflows/**"
+  ],
+  "edge_patterns": [
+    { "kind": "phase_call", "regex": "\\bphase\\(['\"]([^'\"]+)['\"]\\)" },
+    { "kind": "cron_expr", "regex": "cron_expression['\"]?\\s*[:=]\\s*['\"]([^'\"]+)['\"]" },
+    { "kind": "hook_def", "regex": "\"(PreToolUse|PostToolUse|Stop|SessionStart|UserPromptSubmit)\"" }
+  ],
+  "use_git_log": true,
+  "git_log_limit": 100
+}

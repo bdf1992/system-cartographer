@@ -1,0 +1,24 @@
+{
+  "include": [
+    "**/*.py",
+    "**/*.js",
+    "**/*.ts",
+    "**/*.sh",
+    "**/*.rb",
+    "**/*.go"
+  ],
+  "edge_patterns": [
+    {
+      "kind": "python_import",
+      "regex": "^\\s*(?:from|import)\\s+([\\w\\.]+)"
+    },
+    {
+      "kind": "js_require",
+      "regex": "require\\(['\\\"]([^'\\\"]+)['\\\"]\\)"
+    },
+    {
+      "kind": "js_import",
+      "regex": "from\\s+['\\\"]([^'\\\"]+)['\\\"]"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "include": [
+    "**/README*",
+    "**/docs/**",
+    "**/*.md",
+    "**/.github/workflows/*",
+    "**/mkdocs.yml",
+    "**/docusaurus*",
+    "**/CONTRIBUTING*"
+  ],
+  "edge_patterns": [
+    { "kind": "git_remote", "regex": "(?:github|gitlab|bitbucket)\\.[a-z]+[:/]([\\w\\-]+/[\\w\\-\\.]+)" },
+    { "kind": "wiki_url", "regex": "https?://([\\w\\.\\-]*(?:confluence|wiki|notion)[\\w\\.\\-]*)" },
+    { "kind": "docs_link", "regex": "https?://([\\w\\.\\-]+)/(?:docs|documentation|wiki)" }
+  ]
+}

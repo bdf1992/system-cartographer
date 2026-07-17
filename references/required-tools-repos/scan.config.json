@@ -1,0 +1,28 @@
+{
+  "include": [
+    "**/*.json",
+    "**/*.toml",
+    "**/*.cfg",
+    "**/*.yaml",
+    "**/*.yml",
+    "**/README*",
+    "**/*.py",
+    "**/*.js",
+    "**/*.ts"
+  ],
+  "edge_patterns": [
+    {
+      "kind": "repo_url",
+      "regex": "github\\.com[:/]([\\w\\-]+/[\\w\\-\\.]+)"
+    },
+    {
+      "kind": "mcp_tool",
+      "regex": "\\bmcp__([\\w_]+)__[\\w_]+\\b"
+    },
+    {
+      "kind": "pip_dep",
+      "regex": "^([A-Za-z0-9_\\-]+)\\s*[=<>~!]",
+      "include": ["**/requirements*.txt", "requirements*.txt"]
+    }
+  ]
+}
