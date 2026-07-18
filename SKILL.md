@@ -7,7 +7,7 @@ description: Reverse-engineer and formally describe a tacit Agent, Skill, Workfl
 
 Turn a tacit system into a portable description of the object **and the apparatus that
 observed it**. Show its builder the gap between the system they think they have and the
-one the evidence supports. Discover, ask, and classify. Never build, fix, or fill on
+one the evidence supports in effort to allow replication of it's intent. Discover, ask, and classify. Never build, fix, or fill on
 the owner's behalf.
 
 **What done means:** a card a dev team with no priors could rebuild an equivalent
@@ -177,21 +177,45 @@ Use `--registry <base> --registry <overlay>` to add project- or host-specific co
 without vendor SDKs. `references/host-environments.md` maps common hosts without making
 their paths universal.
 
-The deliverable is a **bundle**, not a bare card: `scripts/export_bundle.py` copies or
-excerpts the actual evidence into `exports/<slot>/` with a manifest, so priors point at
-content that travels rather than paths that die off-machine. Every bundle carries two
-generated review surfaces — `README.md` for the human (synopsis, findings, review
-items, next actions) and `handoff.json` for the next agent (typed actions with
-commands, pending states, unresolved warnings) — produced by
-`scripts/bundle_synopsis.py`; `state.py` refuses to mark a bundle `shared` without
-them, because a bundle that can't be read on arrival isn't a handoff, it's homework.
-`state.py` also refuses `shared` while any resolved boundary pointer carries no
-disposition (`scripts/state.py disposition`; `references/boundary-protocol.md`) — a
-bundle that ships silently omitting what its own target points at outside its root
-isn't a handoff either, it's a card that fails its own replication test. The bundle also carries the
-**process trace** (`exports/process/`): every scan stamps a `run` block (config, timing),
-elicitation runs through structured question tools so answers land as data points, and
-each fill records its provenance — because how the run went (slow scans, skipped
+The deliverable is a **bundle**, not a bare card, and not every candidate the scan
+noticed — only real evidence earns a place in it. A scan's `findings[]` (per concern,
+in each `<concern>.json` graph) carry an `evidence_stage`: a bare glob/extension match
+stays `candidate` forever; it only becomes `structural` (parses against the concern's
+real shape — frontmatter, an AST import, a test's invocation+assertion) or `behavioral`
+(a real operation: an actual client call, an install invocation) by surviving a check in
+`scripts/structural_validators.py`. `scripts/build_export_manifest.py` turns those
+findings into `export-plan.json` — the plan, before anything is copied, of exactly what
+ships and why (`--profile handoff` for a bounded representative slice, `--profile
+replication` for every evidenced source) — folding exact-duplicate copies
+(`scripts/lineage.py`) into their one canonical source instead of exporting each
+independently. `scripts/export_bundle.py --plan export-plan.json` then does the actual
+copying into `exports/<slot>/`: raw-byte hashing, binaries copied byte-for-byte and
+never secret-scanned, a collision gets a numbered suffix instead of a silent overwrite,
+and every write is re-hashed against what's actually on disk before the bundle is
+trusted. Priors point at content that travels rather than paths that die off-machine.
+
+Every bundle carries three generated review surfaces, produced by
+`scripts/bundle_synopsis.py`: `README.md` for the human (candidate vs. structural vs.
+behavioral breakdown, findings, review items, next actions), `handoff.json` for the
+next agent (typed actions with commands, pending states, unresolved warnings), and
+`report.html` — a self-contained static dashboard (no external assets, no network
+calls) of the same data for a human who'd rather look at bars than JSON, openable
+directly from inside the bundle on any machine. `state.py` refuses to mark a bundle
+`shared` without README.md/handoff.json, because a bundle that can't be read on
+arrival isn't a handoff, it's homework. `state.py` also refuses `shared` while any
+resolved boundary pointer carries no disposition (`scripts/state.py disposition`;
+`references/boundary-protocol.md`) — a bundle that ships silently omitting what its own
+target points at outside its root isn't a handoff either, it's a card that fails its
+own replication test — and while any secret warning carries no disposition
+(`scripts/state.py secret-disposition`). `exported` refuses without a profile-carrying
+manifest, an export plan in the bundle, verified export integrity, and no shipped
+`scan-cache.json`; `carded` refuses while a planned source's `source_class` (generated /
+vendor / transcript / snapshot / …) needs a stated justification with none recorded
+(`scripts/state.py justify`). Every one of these gates fires whether its state is the
+literal advance target or one skipped over on the way to a later one — skipping past a
+gate never means bypassing it. The bundle also carries the **process trace**
+(`exports/process/`: `scan.json`, `patterns.json`, `lineage.json`, `environment.json`) —
+separate from evidence, always included, because how the run went (slow scans, skipped
 questions, cycles to converge) is itself a finding about the system. Review the
 bundler's secret warnings before a bundle leaves the machine.
 

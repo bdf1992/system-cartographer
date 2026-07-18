@@ -155,8 +155,11 @@ def _seed_tasks(run):
           skippable=True),
         t("export-source-evidence", "Export relevant source evidence", "assemble",
           ["generate-informed-scan-configs"],
-          "Priors must point at content that travels, not paths that die off-machine (export_bundle.py).",
-          "python scripts/export_bundle.py --manifest " + run + "/manifest.json --out " + run,
+          "Priors must point at content that travels, not paths that die off-machine (export_bundle.py) — "
+          "and only real evidence gets planned, never every candidate (build_export_manifest.py).",
+          "python scripts/build_export_manifest.py --scan-dir " + run + "/scan --profile replication "
+          "--out " + run + "/export-plan.json && python scripts/export_bundle.py --plan " +
+          run + "/export-plan.json --out " + run,
           "manifest.json", "every card prior resolves to an exports/<slot>/ path, not a machine-local path"),
         t("resolve-boundary-dispositions", "Resolve boundary dispositions", "share",
           ["export-source-evidence"],

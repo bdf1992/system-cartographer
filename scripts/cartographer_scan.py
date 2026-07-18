@@ -21,6 +21,13 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(__file__))
 from concern_registry import load as load_registries  # noqa: E402
+import structural_validators  # noqa: E402
+import lineage  # noqa: E402
+
+# Bumped whenever structural_validators.py's checks change meaning — folded into
+# config_signature() so an old scan-cache built under a looser validator can't be
+# silently reused to claim a file is still just "candidate" (or vice versa).
+VALIDATORS_VERSION = "1"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL_ROOT = os.path.dirname(HERE)
@@ -75,7 +82,7 @@ def load_environment(path):
 
 
 def config_signature(items, configs, boundary_config=None):
-    stable = []
+    stable = [{"validators_version": VALIDATORS_VERSION}]
     for item in items:
         stable.append({k: v for k, v in item.items() if not k.startswith("_")})
         if item["id"] in configs:
@@ -171,11 +178,24 @@ def peek_boundary_target(path, max_entries=25, max_chars=160):
         return {"kind": "unknown", "error": str(exc)}
 
 
+def _canonical_key(resolved):
+    """Canonicalizes Windows case, separators, and drive-letter spelling so
+    two differently-written references to the SAME real file group as one
+    pointer, not two — os.path.normcase folds drive-letter/segment case on
+    Windows (a no-op on POSIX); normpath folds separators and '..' segments."""
+    return os.path.normcase(os.path.normpath(resolved))
+
+
 def build_boundary_pointers(boundary_edges, root):
     """Every path-shaped reference the scan noticed that resolves outside
     (or fails to resolve inside) the declared target root — named, classified
     by relation to root, and given a cheap peek. This is what lets the map
-    say 'there is a door here' instead of silently stopping at its own walls."""
+    say 'there is a door here' instead of silently stopping at its own walls.
+
+    Grouping key is the resolved target's canonical form, not the literal
+    reference string — 'C:\\Foo\\Bar', 'c:/foo/bar', and './Bar' from a
+    sibling file all name the same door and must land in the same group
+    (references/boundary-protocol.md's grouping law)."""
     grouped = {}
     for edge in boundary_edges:
         dst = edge["dst"]
@@ -185,21 +205,27 @@ def build_boundary_pointers(boundary_edges, root):
         relation = classify_relation(resolved, root) if resolved else "unresolved"
         if relation in ("self", "descendant"):
             continue
-        key = (dst, resolved)
+        key = _canonical_key(resolved) if resolved else ("unresolved", dst)
         if key not in grouped:
-            pid = hashlib.sha256(f"{dst}|{resolved or ''}".encode()).hexdigest()[:12]
+            pid = hashlib.sha256(f"{key}".encode()).hexdigest()[:12]
             grouped[key] = {
                 "id": pid,
                 "reference": dst,
+                "reference_variants": [],
                 "relation": relation,
                 "resolved_path": resolved,
                 "exists": resolved is not None,
                 "referenced_from": [],
                 "explore": peek_boundary_target(resolved) if resolved else None,
+                "source_class": (lineage.classify_source_class(_norm(os.path.relpath(resolved, root)), False)
+                                 if resolved and os.path.isfile(resolved) else None),
                 "disposition": None,
             }
-        if edge["src"] not in grouped[key]["referenced_from"]:
-            grouped[key]["referenced_from"].append(edge["src"])
+        entry = grouped[key]
+        if dst not in entry["reference_variants"]:
+            entry["reference_variants"].append(dst)
+        if edge["src"] not in entry["referenced_from"]:
+            entry["referenced_from"].append(edge["src"])
     return sorted(
         grouped.values(),
         key=lambda p: (0 if p["exists"] else 1, -len(p["referenced_from"]), p["reference"]),
@@ -249,20 +275,20 @@ def collect_files(root, configs, extra_excludes, max_files, follow_symlinks):
     return found, truncated, errors
 
 
-def scan_one(record, compiled, max_file_bytes, cached, boundary_compiled=()):
+def scan_one(record, compiled, max_file_bytes, cached, boundary_compiled=(), internal_names=None):
     rel = record["rel"]
     cache_key = f"{record['size']}:{record['mtime_ns']}"
     if cached and cached.get("stat") == cache_key and cached.get("concerns") == record["concerns"]:
-        return rel, cached.get("edges", []), cached.get("boundary_edges", []), True, None
+        return rel, cached.get("edges", []), cached.get("boundary_edges", []), True, None, cached.get("findings", []), cached.get("rejected", [])
     if not record["concerns"] or record["size"] > max_file_bytes:
-        return rel, [], [], False, "oversize" if record["concerns"] else None
+        return rel, [], [], False, "oversize" if record["concerns"] else None, [], []
     if not any(compiled.get(cid) for cid in record["concerns"]) and not boundary_compiled:
-        return rel, [], [], False, None
+        return rel, [], [], False, None, [], []
     try:
         with open(record["path"], "r", encoding="utf-8", errors="ignore") as f:
             text = f.read(max_file_bytes + 1)
     except OSError as exc:
-        return rel, [], [], False, str(exc)
+        return rel, [], [], False, str(exc), [], []
     edges = []
     for cid in record["concerns"]:
         for kind, rx, includes, excludes in compiled.get(cid, []):
@@ -282,7 +308,17 @@ def scan_one(record, compiled, max_file_bytes, cached, boundary_compiled=()):
         for match in rx.finditer(text):
             dst = match.group(1) if match.groups() else match.group(0)
             boundary_edges.append({"src": rel, "dst": dst.strip(), "kind": kind})
-    return rel, edges, boundary_edges, False, None
+
+    findings, rejected = [], []
+    for cid in record["concerns"]:
+        if cid == "code-scripts":
+            imp_findings, imp_rejected = structural_validators.classify_imports(rel, text, internal_names or set())
+            findings.extend({"concern": cid, "file": rel, **f} for f in imp_findings)
+            rejected.extend({"concern": cid, "file": rel, **r} for r in imp_rejected)
+            continue
+        for f in structural_validators.validate(cid, rel, text, {}):
+            findings.append({"concern": cid, "file": rel, **f})
+    return rel, edges, boundary_edges, False, None, findings, rejected
 
 
 def git_log(root, limit=200):
@@ -303,7 +339,9 @@ def git_log(root, limit=200):
     return rows
 
 
-def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evidence, boundary_pointers=(), boundary_pointers_unresolved_dropped=0):
+def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evidence, boundary_pointers=(),
+                    boundary_pointers_unresolved_dropped=0, all_findings=(), all_rejected=(),
+                    lineage_report=None, evidenced_files_by_concern=None):
     candidate_pairs = Counter()
     evidence_pairs = Counter()
     hotspots = []
@@ -313,6 +351,13 @@ def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evid
     edge_concerns_by_file = defaultdict(set)
     for edge in all_edges:
         edge_concerns_by_file[edge["src"]].add(edge["concern"])
+
+    evidenced_files_by_concern = evidenced_files_by_concern or {}
+    structural_concerns_by_file = defaultdict(set)
+    for cid, files in evidenced_files_by_concern.items():
+        for file_ in files:
+            structural_concerns_by_file[file_].add(cid)
+
     candidate_coverage = Counter()
     evidence_coverage = Counter()
     for record in records:
@@ -322,7 +367,11 @@ def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evid
         if concerns:
             classified += 1
         candidate_coverage.update(concerns)
-        evidenced = sorted(edge_concerns_by_file[record["rel"]] | (set(concerns) & node_evidence))
+        # A file counts as evidenced for a concern only on a real edge (a regex
+        # actually matched a relationship) or a real structural+/behavioral+
+        # finding — never merely because the concern's evidence_mode is "node"
+        # and the glob happened to match (references/evidence-model.md).
+        evidenced = sorted(edge_concerns_by_file[record["rel"]] | structural_concerns_by_file.get(record["rel"], set()))
         evidence_coverage.update(evidenced)
         for left, right in itertools.combinations(concerns, 2):
             candidate_pairs[(left, right)] += 1
@@ -341,14 +390,27 @@ def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evid
         {"target": target, "concerns": sorted(concerns), "concern_count": len(concerns)}
         for target, concerns in target_concerns.items() if len(concerns) > 1
     ]
+
+    stage_counts = Counter(f["evidence_stage"] for f in all_findings)
+    stage_by_concern = defaultdict(Counter)
+    for f in all_findings:
+        stage_by_concern[f["concern"]][f["evidence_stage"]] += 1
+    source_class_counts = Counter(r.get("source_class") for r in records if r.get("source_class"))
+
+    lineage_report = lineage_report or {}
     return {
         "summary": {
             "files_seen": len(records),
             "files_candidate_classified": classified,
-            "files_with_evidence": sum(1 for r in records if edge_concerns_by_file[r["rel"]] or set(r["concerns"]) & node_evidence),
+            "files_with_evidence": sum(1 for r in records if edge_concerns_by_file[r["rel"]] or structural_concerns_by_file.get(r["rel"])),
             "files_outside_scan_surfaces": len(records) - classified,
             "concerns_selected": len(selected_ids),
             "edges": len(all_edges),
+            "findings": len(all_findings),
+            "findings_by_stage": dict(sorted(stage_counts.items())),
+            "rejected_candidates": len(all_rejected),
+            "duplicate_groups": lineage_report.get("summary", {}).get("duplicate_groups", 0),
+            "copies_suppressed": lineage_report.get("summary", {}).get("copies_suppressed", 0),
             "boundary_pointers": len(boundary_pointers),
             "boundary_pointers_undispositioned": sum(
                 1 for p in boundary_pointers
@@ -358,6 +420,9 @@ def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evid
         },
         "candidate_concern_coverage": dict(sorted(candidate_coverage.items())),
         "evidenced_concern_coverage": dict(sorted(evidence_coverage.items())),
+        "findings_by_concern_and_stage": {cid: dict(sorted(c.items())) for cid, c in sorted(stage_by_concern.items())},
+        "rejected_candidates": list(all_rejected)[:200],
+        "source_class_counts": dict(sorted(source_class_counts.items())),
         "evidenced_concern_pairs": [
             {"concerns": list(pair), "shared_file_count": count}
             for pair, count in evidence_pairs.most_common()
@@ -374,10 +439,16 @@ def build_patterns(records, all_edges, selected_ids, environment_gaps, node_evid
         "boundary_pointers": list(boundary_pointers),
         "reading_notes": [
             "Candidate surface overlap measures the instrument; evidenced overlap measures the target.",
+            "evidenced_concern_coverage now requires a real edge or a structural+/behavioral+ finding — "
+            "a node-evidence concern's bare glob match is never enough on its own (references/evidence-model.md).",
             "High evidenced concern-pair counts indicate shared substrate, not automatically bad coupling.",
             "A hotspot is a question target: ask whether its multiple roles are intentional.",
             "Unclassified files expose registry/config blind spots; they are not evidence of irrelevance.",
             "Pattern counts describe the observation instrument as well as the target.",
+            "rejected_candidates names candidates that failed real structural validation with a reason "
+            "(e.g. a .py file that doesn't parse) — never silently dropped.",
+            "source_class_counts / duplicate_groups / copies_suppressed come from lineage.py's dedup pass — "
+            "a copy never independently inflates a concern count past its canonical source.",
             "boundary_pointers names every path-shaped reference this scan found that actually resolved "
             "outside its own root (ancestor, sibling, or cousin) — see references/boundary-protocol.md. "
             "A card is not done while a load-bearing pointer here carries no disposition. Candidates that "
@@ -405,8 +476,18 @@ def follow_boundary_pointers(boundary_pointers, args):
     'propagate to peers/children' capability, opt-in via --follow-boundaries so
     a plain run stays fast and never reads outside its declared root by surprise."""
     cap = getattr(args, "max_boundary_follow", 8) or 8
+    dispositions = {}
+    disp_path = getattr(args, "boundary_dispositions", None)
+    if disp_path and os.path.isfile(disp_path):
+        with open(disp_path, encoding="utf-8") as f:
+            dispositions = json.load(f)
     followed = 0
     for pointer in boundary_pointers:
+        disp = dispositions.get(pointer["id"], {}).get("status")
+        if disp in ("excluded", "deferred"):
+            pointer["followed"] = {"status": "not_followed",
+                                    "reason": f"disposed {disp} — never sub-scanned (boundary-protocol.md)"}
+            continue
         if not pointer["exists"] or pointer["relation"] not in ("ancestor", "sibling", "cousin"):
             continue
         if (pointer.get("explore") or {}).get("kind") != "directory":
@@ -488,27 +569,41 @@ def scan(args):
     records, truncated, walk_errors = collect_files(
         root, configs, args.exclude, args.max_files, args.follow_symlinks
     )
+    lineage_report = lineage.build_lineage(records, root, args.max_file_bytes)
+    internal_names = set()
+    for r in records:
+        stem = os.path.splitext(os.path.basename(r["rel"]))[0]
+        if stem:
+            internal_names.add(stem)
+        top = r["rel"].split("/")[0]
+        if top and top != r["rel"]:
+            internal_names.add(top)
+
     compiled = {cid: compile_patterns(config) for cid, config in configs.items()}
     all_edges = []
     all_boundary_edges = []
+    all_findings = []
+    all_rejected = []
     cache_hits = 0
     read_errors = []
     new_cache = {}
     effective_workers = args.workers or (1 if len(records) < 10000 else min(8, (os.cpu_count() or 2) + 2))
     if effective_workers == 1:
         scanned = (
-            (record, scan_one(record, compiled, args.max_file_bytes, cache.get(record["rel"]), boundary_compiled))
+            (record, scan_one(record, compiled, args.max_file_bytes, cache.get(record["rel"]), boundary_compiled, internal_names))
             for record in records
         )
     else:
         pool = concurrent.futures.ThreadPoolExecutor(max_workers=effective_workers)
-        futures = [pool.submit(scan_one, record, compiled, args.max_file_bytes, cache.get(record["rel"]), boundary_compiled) for record in records]
+        futures = [pool.submit(scan_one, record, compiled, args.max_file_bytes, cache.get(record["rel"]), boundary_compiled, internal_names) for record in records]
         scanned = zip(records, (future.result() for future in futures))
     try:
         for record, outcome in scanned:
-            rel, edges, boundary_edges, hit, error = outcome
+            rel, edges, boundary_edges, hit, error, findings, rejected = outcome
             all_edges.extend(edges)
             all_boundary_edges.extend(boundary_edges)
+            all_findings.extend(findings)
+            all_rejected.extend(rejected)
             cache_hits += int(hit)
             if error:
                 read_errors.append({"path": rel, "error": error})
@@ -516,10 +611,33 @@ def scan(args):
                 new_cache[rel] = {
                     "stat": f"{record['size']}:{record['mtime_ns']}",
                     "concerns": record["concerns"], "edges": edges, "boundary_edges": boundary_edges,
+                    "findings": findings, "rejected": rejected,
                 }
     finally:
         if effective_workers != 1:
             pool.shutdown()
+
+    # memories' evidence needs the whole edge set (a demonstrated reader/writer
+    # is a cross-file fact) — a cheap post-pass, no re-reading of file text.
+    path_references = set()
+    for edge in all_edges:
+        dst = edge["dst"]
+        if "://" not in dst and ("/" in dst or "." in dst) and len(dst) < 200:
+            path_references.add(dst)
+            path_references.add(os.path.basename(dst))
+    for record in records:
+        if "memories" in record["concerns"]:
+            for f in structural_validators.validate("memories", record["rel"], "", {"path_references": path_references}):
+                all_findings.append({"concern": "memories", "file": record["rel"], **f})
+    EVIDENCED_STAGES = {"structural", "behavioral", "observed", "confirmed"}
+    findings_by_concern_file = defaultdict(list)
+    for f in all_findings:
+        findings_by_concern_file[(f["concern"], f["file"])].append(f)
+    evidenced_files_by_concern = defaultdict(set)
+    for (cid, file_), fs in findings_by_concern_file.items():
+        if any(f["evidence_stage"] in EVIDENCED_STAGES for f in fs):
+            evidenced_files_by_concern[cid].add(file_)
+
     git_history = git_log(root) if any(i["id"] == "session-quality" for i in active) else []
     graphs = {}
     for item in active:
@@ -527,11 +645,16 @@ def scan(args):
         scanner_kind = item["scanner"]["kind"]
         if scanner_kind == "regex-graph":
             nodes = [
-                {"id": r["rel"], "kind": "file", "path": r["path"], "meta": {"bytes": r["size"]}}
+                {"id": r["rel"], "kind": "file", "path": r["path"], "meta": {"bytes": r["size"]},
+                 "source_class": r.get("source_class"), "canonical_rel": r.get("canonical_rel")}
                 for r in records if cid in r["concerns"]
             ]
             edges = [{k: v for k, v in edge.items() if k != "concern"} for edge in all_edges if edge["concern"] == cid]
-            graphs[cid] = {"target": args.target_name or root, "root": root, "concern": cid, "type": item["type"], "nodes": nodes, "edges": edges, "meta": {"node_count": len(nodes), "edge_count": len(edges)}}
+            findings = [f for f in all_findings if f["concern"] == cid]
+            graphs[cid] = {"target": args.target_name or root, "root": root, "concern": cid, "type": item["type"],
+                           "nodes": nodes, "edges": edges, "findings": findings,
+                           "meta": {"node_count": len(nodes), "edge_count": len(edges),
+                                    "evidenced_count": len(evidenced_files_by_concern.get(cid, ()))}}
         elif cid == "session-quality":
             graphs[cid] = {"target": args.target_name or root, "root": root, "concern": cid, "type": item["type"], "analysis": {"commit_count": len(git_history), "recent_commits": git_history}, "meta": {"scanner": "shared-git-read"}}
     node_evidence = {
@@ -548,11 +671,15 @@ def scan(args):
         boundary_pointers = [p for p in boundary_pointers_all if p["exists"]]
         boundary_pointers_dropped = len(boundary_pointers_all) - len(boundary_pointers)
     patterns = build_patterns(records, all_edges, sorted(graphs), environment_gaps, node_evidence,
-                               boundary_pointers, boundary_pointers_dropped)
+                               boundary_pointers, boundary_pointers_dropped,
+                               all_findings, all_rejected, lineage_report, evidenced_files_by_concern)
+    # Cross-cutting couplings: a node only joins if it's real evidence for that
+    # concern (a structural+ finding), never a bare candidate glob match — a
+    # weak candidate shared across two concerns' globs is not a coupling.
     shared = defaultdict(set)
     for cid, graph in graphs.items():
-        for node in graph.get("nodes", []):
-            shared[node["id"]].add(cid)
+        for file_ in evidenced_files_by_concern.get(cid, ()):
+            shared[file_].add(cid)
         for edge in graph.get("edges", []):
             shared[edge["dst"]].add(cid)
     if any(item["id"] == "cross-cutting" for item in active):
@@ -567,12 +694,13 @@ def scan(args):
     }
     for graph in graphs.values():
         graph["run"] = run
-    result = {"schema_version": "1.0", "target": args.target_name or root, "environment": environment, "graphs": graphs, "patterns": patterns, "run": run, "produced_by": _produced_by(signature)}
+    result = {"schema_version": "1.1", "target": args.target_name or root, "environment": environment, "graphs": graphs, "patterns": patterns, "lineage": lineage_report, "run": run, "produced_by": _produced_by(signature)}
     if args.out_dir:
         os.makedirs(args.out_dir, exist_ok=True)
         for cid, graph in graphs.items():
             atomic_json(os.path.join(args.out_dir, cid + ".json"), graph)
         atomic_json(os.path.join(args.out_dir, "patterns.json"), patterns)
+        atomic_json(os.path.join(args.out_dir, "lineage.json"), lineage_report)
         atomic_json(os.path.join(args.out_dir, "scan.json"), result)
     if args.cache:
         atomic_json(args.cache, {"version": 1, "signature": signature, "files": new_cache})
@@ -613,6 +741,9 @@ def main():
                     help="Take one real sub-scan hop into resolved ancestor/sibling/cousin pointers (bounded, opt-in)")
     ap.add_argument("--max-boundary-follow", type=int, default=8,
                     help="Cap on how many boundary pointers --follow-boundaries actually scans")
+    ap.add_argument("--boundary-dispositions",
+                    help="boundary-dispositions.json from state.py — excluded/deferred pointers are never "
+                         "sub-scanned by --follow-boundaries, even if they'd otherwise be eligible")
     ap.add_argument("--include-unresolved-boundary-pointers", action="store_true",
                     help="Also emit boundary-pointer candidates that never resolved to anything real "
                          "(prose false positives) — dropped by default; useful when tuning --boundary-config")

@@ -19,6 +19,7 @@ See references/save-states.md for what each state means, who produces it,
 and why someone would deliberately stop there.
 """
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -35,12 +36,23 @@ def _dispositions_path(bundle):
     return os.path.join(bundle, "boundary-dispositions.json")
 
 
-def _load_dispositions(bundle):
-    path = _dispositions_path(bundle)
+def _secret_dispositions_path(bundle):
+    return os.path.join(bundle, "secret-dispositions.json")
+
+
+def _justifications_path(bundle):
+    return os.path.join(bundle, "justifications.json")
+
+
+def _load_json_or(path, default):
     if not os.path.exists(path):
-        return {}
+        return default
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def _load_dispositions(bundle):
+    return _load_json_or(_dispositions_path(bundle), {})
 
 
 def _find_patterns(bundle):
@@ -55,6 +67,103 @@ def _find_patterns(bundle):
             with open(os.path.join(root, "patterns.json"), encoding="utf-8") as f:
                 return json.load(f)
     return None
+
+
+def _find_manifest(bundle):
+    path = os.path.join(bundle, "manifest.json")
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _find_scan_caches(bundle):
+    """A bundle that ships scanner exhaust (scan-cache.json, or a followed
+    sub-scan of a boundary that was never actually disposed included) is
+    shipping process residue as if it were evidence."""
+    hits = []
+    for root, dirs, files in os.walk(bundle):
+        for name in files:
+            if name == "scan-cache.json":
+                hits.append(os.path.relpath(os.path.join(root, name), bundle))
+    return hits
+
+
+def cmd_secret_disposition(bundle, key, status, actor, note):
+    key = key.strip()
+    if status not in ("resolved", "accepted", "non-secret"):
+        sys.exit("--status must be one of: resolved, accepted, non-secret")
+    if not note:
+        sys.exit("secret-disposition requires --note: say what was checked and why it's safe to ship")
+    dispositions = _load_json_or(_secret_dispositions_path(bundle), {})
+    dispositions[key] = {"status": status, "actor": actor, "note": note,
+                         "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    with open(_secret_dispositions_path(bundle), "w", encoding="utf-8") as f:
+        json.dump(dispositions, f, indent=2)
+    print(f"{key} -> {status}")
+
+
+def _undispositioned_secret_warnings(bundle):
+    manifest = _find_manifest(bundle)
+    if not manifest:
+        return []
+    dispositions = _load_json_or(_secret_dispositions_path(bundle), {})
+    missing = []
+    for entry in manifest.get("entries", []):
+        for warning in entry.get("secret_warnings", []):
+            key = warning.split(" matches ")[0]  # "export:line" prefix — stable per-hit key
+            if key not in dispositions:
+                missing.append(warning)
+    return missing
+
+
+def cmd_justify(bundle, rel, actor, note):
+    if not note:
+        sys.exit("justify requires --note: why this source_class is acceptable evidence")
+    justifications = _load_json_or(_justifications_path(bundle), {})
+    justifications[rel] = {"actor": actor, "note": note,
+                           "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    with open(_justifications_path(bundle), "w", encoding="utf-8") as f:
+        json.dump(justifications, f, indent=2)
+    print(f"{rel} -> justified")
+
+
+def _find_export_plan(bundle):
+    path = os.path.join(bundle, "export-plan.json")
+    return _load_json_or(path, None)
+
+
+def _unjustified_plan_entries(bundle):
+    plan = _find_export_plan(bundle)
+    if not plan:
+        return None  # no plan at all is a separate, harder failure — checked directly
+    justifications = _load_json_or(_justifications_path(bundle), {})
+    return [e["rel"] for e in plan.get("entries", [])
+            if e.get("needs_justification") and e.get("rel") not in justifications]
+
+
+def _verify_export_integrity(bundle):
+    """Re-hashes every export actually on disk right now and compares against
+    the hash export_bundle.py recorded at write time — the mechanical form of
+    'exported hashes match', not a claim taken on faith."""
+    manifest = _find_manifest(bundle)
+    if not manifest:
+        return ["no manifest.json to verify"]
+    problems = []
+    for entry in manifest.get("entries", []):
+        export = entry.get("export")
+        if not export:
+            continue
+        full = os.path.join(bundle, *export.split("/"))
+        if not os.path.isfile(full):
+            problems.append(f"{export}: missing on disk")
+            continue
+        with open(full, "rb") as f:
+            actual = hashlib.sha256(f.read()).hexdigest()
+        expected = entry.get("export_sha256")
+        if expected and actual != expected:
+            problems.append(f"{export}: hash mismatch (recorded {expected[:8]}, actual {actual[:8]})")
+    return problems
 
 
 def _undispositioned_boundary_pointers(bundle):
@@ -135,14 +244,38 @@ def cmd_advance(bundle, target, actor, note):
     if tgt_i <= cur_i:
         sys.exit(f"cannot advance {state['current']} -> {target}; use reopen to go back "
                  f"(reason required)")
-    if tgt_i > cur_i + 1:
-        skipped = ORDER[cur_i + 1:tgt_i]
+    skipped = ORDER[cur_i + 1:tgt_i]
+    if skipped:
         if "elicited" in skipped and not (note and "skip" in note.lower()):
             sys.exit("refusing to silently skip 'elicited' — blind belief capture is "
                      "unrecoverable (save-states.md). Pass --note 'skipped(<reason>)' "
                      "to record the skip explicitly.")
         print(f"note: skipping {skipped} — recorded in history", file=sys.stderr)
-    if target == "shared":
+    # A gate belongs to its named state whether that state is the literal
+    # target or one jumped over — otherwise 'exported -> carded' in one call
+    # silently bypasses every check 'shared' would have enforced, which is
+    # worse than not having the gate at all (save-states.md's skip law,
+    # extended past just 'elicited' now that later states carry hard gates).
+    checkpoints = set(skipped) | {target}
+    if "exported" in checkpoints:
+        manifest = _find_manifest(bundle)
+        if not manifest:
+            sys.exit("cannot advance to exported: no manifest.json — run export_bundle.py first")
+        if not manifest.get("profile"):
+            sys.exit("cannot advance to exported: manifest.json carries no profile — build an "
+                     "export-plan.json with build_export_manifest.py and export from --plan, "
+                     "not a hand-authored --manifest, so the bundle knows handoff vs replication.")
+        if not _find_export_plan(bundle):
+            sys.exit("cannot advance to exported: no export-plan.json in the bundle — the evidence "
+                     "plan travels with the bundle, it isn't a build-time-only artifact.")
+        integrity_problems = _verify_export_integrity(bundle)
+        if integrity_problems:
+            sys.exit("cannot advance to exported: " + "; ".join(integrity_problems[:5]))
+        caches = _find_scan_caches(bundle)
+        if caches:
+            sys.exit(f"cannot advance to exported: scan-cache.json shipped in the bundle "
+                     f"({', '.join(caches[:3])}) — scanner exhaust, not evidence; delete before export.")
+    if "shared" in checkpoints:
         missing = [f for f in ("README.md", "handoff.json")
                    if not os.path.exists(os.path.join(bundle, f))]
         if missing:
@@ -161,6 +294,46 @@ def cmd_advance(bundle, target, actor, note):
                 "`python scripts/state.py --bundle " + bundle + " disposition <id> "
                 "--status included|excluded|deferred --actor <who> --note <why>`."
             )
+        disp_map = _load_dispositions(bundle)
+        patterns = _find_patterns(bundle) or {}
+        pointers_by_id = {p["id"]: p for p in patterns.get("boundary_pointers", [])}
+        for pid, disp in disp_map.items():
+            if disp.get("status") == "included":
+                pointer = pointers_by_id.get(pid)
+                followed_ok = bool(pointer and (pointer.get("followed") or {}).get("status") == "scanned")
+                exported_ok = pointer is not None and any(
+                    e.get("source") == pointer.get("resolved_path")
+                    for e in (_find_manifest(bundle) or {}).get("entries", [])
+                )
+                if not followed_ok and not exported_ok:
+                    sys.exit(f"cannot advance to shared: boundary pointer {pid} is disposed 'included' "
+                             "but has no exported evidence and was never followed — an 'included' label "
+                             "alone doesn't ground it (boundary-protocol.md).")
+        unresolved_secrets = _undispositioned_secret_warnings(bundle)
+        if unresolved_secrets:
+            sys.exit(f"cannot advance to shared: {len(unresolved_secrets)} secret warning(s) have no "
+                     f"disposition, e.g. {unresolved_secrets[0]!r} — `python scripts/state.py --bundle " +
+                     bundle + " secret-disposition <export:line> --status resolved|accepted|non-secret "
+                     "--actor <who> --note <why>`.")
+    if "carded" in checkpoints:
+        plan = _find_export_plan(bundle)
+        if not plan:
+            sys.exit("cannot advance to carded: no export-plan.json — every card prior needs a named "
+                     "evidence plan behind it, not just a card author's say-so.")
+        unjustified = _unjustified_plan_entries(bundle)
+        if unjustified:
+            sys.exit(f"cannot advance to carded: {len(unjustified)} planned source(s) carry a "
+                     f"source_class needing justification with none recorded, e.g. {unjustified[0]!r} — "
+                     "`python scripts/state.py --bundle " + bundle + " justify <rel> --actor <who> "
+                     "--note <why this is acceptable evidence>`.")
+    if "delivered" in checkpoints:
+        integrity_problems = _verify_export_integrity(bundle)
+        if integrity_problems:
+            sys.exit("cannot advance to delivered: " + "; ".join(integrity_problems[:5]))
+        if not note:
+            sys.exit("delivered requires --note naming the destination and authority "
+                     "(e.g. 'gh:org/repo (private), pushed by X') — a delivery with no recorded "
+                     "destination isn't a delivery, it's a guess about where it went.")
     state["current"] = target
     state["history"].append(_entry(target, actor, note))
     _save(bundle, state)
@@ -204,6 +377,15 @@ def main():
     p.add_argument("--status", required=True, choices=["included", "excluded", "deferred"])
     p.add_argument("--actor", required=True)
     p.add_argument("--note", required=True)
+    p = sub.add_parser("secret-disposition", help="Record what happened to a flagged secret warning")
+    p.add_argument("key", help="The 'export:line' prefix from manifest.json's secret_warnings")
+    p.add_argument("--status", required=True, choices=["resolved", "accepted", "non-secret"])
+    p.add_argument("--actor", required=True)
+    p.add_argument("--note", required=True)
+    p = sub.add_parser("justify", help="Record why a needs_justification source_class is acceptable evidence")
+    p.add_argument("rel")
+    p.add_argument("--actor", required=True)
+    p.add_argument("--note", required=True)
     args = ap.parse_args()
 
     if args.cmd == "init":
@@ -214,6 +396,10 @@ def main():
         cmd_reopen(args.bundle, args.target, args.actor, args.note)
     elif args.cmd == "disposition":
         cmd_disposition(args.bundle, args.pointer_id, args.status, args.actor, args.note)
+    elif args.cmd == "secret-disposition":
+        cmd_secret_disposition(args.bundle, args.key, args.status, args.actor, args.note)
+    elif args.cmd == "justify":
+        cmd_justify(args.bundle, args.rel, args.actor, args.note)
     else:
         cmd_show(args.bundle)
 

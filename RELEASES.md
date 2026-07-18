@@ -1,5 +1,154 @@
 # Releases
 
+## 2.0.0 (2026-07-18)
+
+The replication-grade rewrite. The Graey full-repo run (1.2.4) proved the
+scanner could walk 7,666 files and name real evidence — but its bundle still
+shipped scan JSON, not the source files that evidence cited, because nothing
+in the pipeline distinguished a glob candidate from a validated finding, or
+planned what evidence a bundle actually needed before copying started. This
+release is that missing layer, built as five new/changed pieces working
+together rather than one big patch:
+
+- **`scripts/structural_validators.py`** (new). One real check per concern
+  that a candidate has to survive to become `structural` (parses against the
+  concern's actual shape) or `behavioral` (demonstrates a real operation) —
+  frontmatter + tool grant for agent, name+description+real body for skill,
+  `meta.phases` + `phase()`/`pipeline()` calls or GH Actions `on:`+`jobs:`
+  for workflow, a real client-call pattern (PyGithub/Slack SDK/jira-python/
+  mcp tool call, not a bare word) for integrations, a manifest filename or
+  install invocation for required-tools-repos, invocation+assertion for
+  exemplars, a real failure marker (not just TODO) for issues, a real
+  reachable channel URL for shareability, a path-reference proxy for
+  memories. `code-scripts` gets a real fix, not a heuristic: Python imports
+  are read via `ast.parse`, so a docstring line that merely *starts with*
+  "from the..." can never become a bogus import the way the old regex read
+  it — proven with the exact fixture this epic's acceptance test describes
+  (a "derived from the original design" docstring; the old regex extracts
+  `'the'` as an import, `ast.parse` correctly extracts none). JS/TS gets a
+  tightened, comment-stripped, module-shape-anchored regex (no JS parser in
+  stdlib) that rejects the same class of comment-borne false hit while still
+  accepting a legitimate one-letter destructured import.
+- **`scripts/lineage.py`** (new). Hashes every candidate file's raw bytes,
+  groups exact byte-identical copies, nominates one canonical member per
+  group (shortest path, then lexicographic), and classifies every
+  candidate's `source_class` (source / configuration / generated / copy /
+  archive / snapshot / cache / vendor / transcript / runtime-state /
+  unknown) from path and content shape.
+- **`cartographer_scan.py`**: wired additively. Every regex-graph concern's
+  `scan_one` now also runs its structural validator and (for code-scripts)
+  the import classifier, emitting a typed `findings[]` per concern
+  (concern/file/evidence_stage/signal/locator, plus import_target/class for
+  code). `evidenced_concern_coverage` is **redefined** — a file counts only
+  on a real edge or a structural+ finding, never merely because a
+  node-evidence concern's glob matched (the exact bug the epic opens with).
+  Cross-cutting couplings are filtered the same way: a bare candidate shared
+  across two concerns' globs is no longer a "coupling". Boundary-pointer
+  grouping now keys on the canonicalized resolved target, not the literal
+  reference string, so differently-cased/spelled references to the same
+  real file land in one group (`reference_variants`), not several —
+  verified live: the skill's own self-scan went from 5 boundary-pointer
+  groups to 3 once two case-variant spellings of the same path folded
+  together. `--follow-boundaries` now accepts `--boundary-dispositions` and
+  never sub-scans a pointer already disposed excluded/deferred.
+  `schema_version` bumped to 1.1 (additive: `findings`, `lineage`, node
+  `source_class`/`canonical_rel`); `VALIDATORS_VERSION` folds into the cache
+  signature so an old cache can't hide a validator change.
+- **`scripts/build_export_manifest.py`** (new). Turns real findings into an
+  `export-plan.json` — only structural+ findings ever earn a plan entry,
+  copies are folded into their canonical source (stored once, referenced by
+  every concern it supports), and the scan's own process trace
+  (scan.json/patterns.json/lineage.json/environment.json) is always planned
+  under a `process` slot, separate from evidence. `--profile handoff` caps
+  per-concern, ranked by finding strength; `--profile replication` plans
+  every evidenced source. Included boundary dispositions add their own
+  entries.
+- **`export_bundle.py`**: hardened. Accepts `--plan` (preferred) alongside
+  the legacy `--manifest`. Hashes raw bytes, not decoded-with-errors-ignore
+  text. Binary files (by extension or failed UTF-8 decode) are copied
+  byte-for-byte, never secret-scanned. A collision on the export name gets a
+  numbered suffix instead of a silent overwrite; a name attempting to escape
+  the bundle (`../`, an absolute path) is refused per-entry with a reason,
+  never written. Identical content across entries is written once and
+  referenced by hash. Every write is re-hashed against what's actually on
+  disk — and a real bug lived here: opening the destination in Windows
+  text-mode without `newline=""` silently turns `\n` into `\r\n`, so every
+  single text export failed its own post-write verification on this host,
+  100% false-positive, until fixed. Caught by the verification feature
+  itself, on its first real run.
+- **`state.py`**: new hard gates, not just presence checks.
+  `exported` now requires a profile-carrying manifest, an export-plan.json
+  in the bundle, re-hashed export integrity, and no shipped
+  `scan-cache.json`. `shared` (existing boundary-disposition gate kept)
+  gains: an `included` boundary disposition must link to real exported or
+  followed evidence, not just the label; and every secret warning needs a
+  `secret-disposition` (new subcommand: resolved/accepted/non-secret).
+  `carded` (new gate) requires the export plan and a `justify` record (new
+  subcommand) for every planned source whose `source_class` needs one.
+  `delivered` (new gate) re-verifies export integrity and requires `--note`
+  naming a real destination. **A second real bug, more serious, found
+  proving these**: `cmd_advance`'s existing skip-ahead mechanism (jump
+  straight from `exported` to `carded`) silently bypassed every check
+  `shared` would have enforced, because the new gates were keyed to the
+  literal `target` argument, not to states skipped over on the way there —
+  the same class of hole `elicited`'s existing skip-guard was built to
+  close, just not yet extended to the newer gates. Fixed: every named gate
+  now fires if its state is skipped over OR is the literal target.
+  Reproduced the exact bypass (advance straight to `carded` with zero
+  dispositions recorded) before the fix — it succeeded silently; after the
+  fix, the same call correctly refuses on `shared`'s unresolved secrets.
+- **`bundle_synopsis.py`**: rewritten to report candidate vs. structural vs.
+  behavioral vs. observed vs. confirmed counts, never the unqualified
+  "with evidence" for a bare glob match, plus lineage/dedup savings and a
+  headline number: how many exported files are real source/configuration
+  content (not scan output, not a copy) backing how many real findings —
+  the actual answer to "how much of this bundle can a receiving team inspect
+  without the original repo." New **`report.html`**: a single
+  self-contained static dashboard (inline CSS, no external assets, no
+  network calls) generated alongside README.md/handoff.json — bar charts for
+  evidence-stage breakdown, per-concern coverage, and exported bytes by
+  source class, a boundary-pointer table, and the secret-warning list with
+  resolved ones struck through. It travels inside the bundle and opens
+  directly in a browser on a machine with no path back to this one.
+
+Verified live end to end, self-scan target (this skill's own ~49-file repo,
+run three times over the course of building this — numbers below are the
+final clean run): `state.py init` → `negotiated` → `elicited` (skipped,
+documented, no builder present) → `cartographer_scan.py` (49 files, 47
+candidates, **18 structurally-or-better evidenced**, 78 findings — 77
+structural + 1 behavioral, 0 rejected, 0 duplicate groups on this target) →
+`build_export_manifest.py --profile replication` (12 real sources planned,
+plus the process-trace entries) → `export_bundle.py --plan` (12/12 exported,
+0 failed post-write verification after the CRLF fix, real source `.py`/`.md`
+files landing in `exports/`, not scan output) → `advance exported` (passed:
+plan present, integrity verified, no cache shipped) → refused `advance
+shared` twice for real reasons (missing README/handoff, then 50 undisposed
+secret warnings — the process-trace files' own hashes trip the intentionally
+noisy long-string tripwire) → all secret + the 3 boundary-pointer
+dispositions recorded for real reasons → `advance shared` succeeded →
+`advance carded` → `advance delivered` with a real destination note. Also
+verified live: the two regressions above, reproduced broken before their
+fix and correct after, on this same pipeline.
+
+Not done in this pass, named rather than implied: the full 7,666-file/467MB
+Graey-repo fitness run this epic's acceptance section asks for was not
+re-run — this release is proven on a real but much smaller target, not yet
+re-proven at that scale. Several of the epic's sixteen acceptance tests
+(directory-move portability, deleted-original-repo validation, an `included`
+boundary with no evidence blocking `shared` specifically) have the
+mechanism built and gate-checked in code but no dedicated fixture run
+against them yet. Both are the natural next dogfooding step, in the same
+spirit every prior release here was earned by actually running the tool,
+not by reading the code.
+
+Major bump: `evidenced_concern_coverage`'s meaning changed (stricter, by
+design), boundary-pointer `id`s changed (canonical-key grouping, not
+literal-string grouping — an in-flight bundle's `boundary-dispositions.json`
+from before this release won't match), and `state.py` now hard-refuses
+transitions earlier releases allowed silently. `cartographer_run.py`'s
+`export-source-evidence` task command updated to the plan-based two-step
+flow.
+
 ## 1.3.0 (2026-07-18)
 
 New `scripts/cartographer_run.py` — a first-touch run ledger, so an agent has a visible
