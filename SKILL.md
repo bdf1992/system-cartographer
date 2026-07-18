@@ -5,16 +5,14 @@ description: Reverse-engineer and formally describe a tacit Agent, Skill, Workfl
 
 # System Cartographer
 
-Turn a tacit system into a portable description of the object **and the apparatus that
-observed it**. Show its builder the gap between the system they think they have and the
-one the evidence supports in effort to allow replication of it's intent. Discover, ask, and classify. Never build, fix, or fill on
-the owner's behalf.
+Turn a tacit system into a portable description of the system and code and the apparatus that observed it. Show its builder the gap between the system they think they have and the
+one the evidence supports in effort to allow replication of it's intent. Discover, ask, and classify. Never build, fix, or fill on the owner's behalf.
 
 **What done means:** a card a dev team with no priors could rebuild an equivalent
-object from — capabilities and requirements (what it affects and effects, what it
+system from — capabilities and requirements (what it affects and effects, what it
 needs), not mechanism, not pointers into the source system. Pointers ride along as
 `priors` for teams that do have access. The replication test in
-`references/slot-protocol.md` is the acceptance criterion for every fill.
+`references/slot-protocol.md` is the acceptance criterion for every fill. It's expect an export of the source code will be included.
 
 ## Object and environment model
 
@@ -194,15 +192,26 @@ never secret-scanned, a collision gets a numbered suffix instead of a silent ove
 and every write is re-hashed against what's actually on disk before the bundle is
 trusted. Priors point at content that travels rather than paths that die off-machine.
 
-Every bundle carries three generated review surfaces, produced by
-`scripts/bundle_synopsis.py`: `README.md` for the human (candidate vs. structural vs.
-behavioral breakdown, findings, review items, next actions), `handoff.json` for the
-next agent (typed actions with commands, pending states, unresolved warnings), and
-`report.html` — a self-contained static dashboard (no external assets, no network
-calls) of the same data for a human who'd rather look at bars than JSON, openable
-directly from inside the bundle on any machine. `state.py` refuses to mark a bundle
-`shared` without README.md/handoff.json, because a bundle that can't be read on
-arrival isn't a handoff, it's homework. `state.py` also refuses `shared` while any
+Every bundle carries four generated surfaces, all produced by one call to
+`scripts/bundle_synopsis.py` — never hand-authored per target, never optional. Three are
+*process* surfaces (the run's own state, for review): `README.md` for the human (candidate
+vs. structural vs. behavioral breakdown, findings, review items, next actions),
+`handoff.json` for the next agent (typed actions with commands, pending states, unresolved
+warnings), and `report.html` — a self-contained static dashboard of the same data. The
+fourth, `onboarding-card.html` (built by `scripts/onboarding_card.py`), is the **product**
+surface and the standing answer to "what done means" above: one capability-and-requirement
+card per real, structurally-evidenced agent/skill/workflow — name, description, and tool
+grant pulled straight from that file's own frontmatter; every real hook/trigger binding as a
+table; what the target depends on outside its own root; and the actual exported source
+underneath every single claim, so a dev with no priors can go from the summary straight to
+the real file. `onboarding_card.py` carries no knowledge of any specific target — every
+string in it is generic English about concerns and evidence stages; point it at a different
+system and the same template renders that system's own cards from that system's own
+findings. This is the shape every run is aimed at producing, every time — not a one-off
+report style chosen per target. `state.py` refuses to mark a bundle `shared` without
+README.md/handoff.json/onboarding-card.html all present, because a bundle that can't be
+read — or rebuilt from — on arrival isn't a handoff, it's homework. `state.py` also refuses
+`shared` while any
 resolved boundary pointer carries no disposition (`scripts/state.py disposition`;
 `references/boundary-protocol.md`) — a bundle that ships silently omitting what its own
 target points at outside its root isn't a handoff either, it's a card that fails its

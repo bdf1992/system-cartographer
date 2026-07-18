@@ -276,11 +276,12 @@ def cmd_advance(bundle, target, actor, note):
             sys.exit(f"cannot advance to exported: scan-cache.json shipped in the bundle "
                      f"({', '.join(caches[:3])}) — scanner exhaust, not evidence; delete before export.")
     if "shared" in checkpoints:
-        missing = [f for f in ("README.md", "handoff.json")
+        missing = [f for f in ("README.md", "handoff.json", "onboarding-card.html")
                    if not os.path.exists(os.path.join(bundle, f))]
         if missing:
             sys.exit(f"cannot advance to shared: {', '.join(missing)} missing. A bundle "
-                     "must carry its review surfaces before it travels — run "
+                     "must carry its review surfaces AND its product surface (the onboarding "
+                     "card) before it travels — run "
                      "`python scripts/bundle_synopsis.py --bundle " + bundle + "` first.")
         undispositioned = _undispositioned_boundary_pointers(bundle)
         if undispositioned:

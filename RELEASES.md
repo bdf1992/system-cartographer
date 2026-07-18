@@ -1,5 +1,52 @@
 # Releases
 
+## 2.1.0 (2026-07-18)
+
+The standing product template. 2.0.0 fixed *which* evidence is real; this release fixes what a
+run actually hands back — a card, not a stats dashboard. Built after using the skill for real on
+a live target (this repo's own `.claude/` — 14 subagents, 7 commands, the hook wiring) and
+finding that a hand-authored HTML report, however accurate, isn't the deliverable: SKILL.md's own
+"what done means" always promised *capability + requirement cards a dev with no priors could
+rebuild from*, and nothing before this release actually produced that shape without an agent
+hand-writing prose per target.
+
+- **`structural_validators.py`**: every validator that already promotes a candidate to
+  structural/behavioral now also returns `extracted` — the real structured data the check pulled
+  out (an agent's `name`/`description`/`tools` from its own frontmatter; a skill's `name`/
+  `description`; a workflow's real trigger shape). `validate_workflow` gained a genuinely new
+  check: any JSON file shaped like a Claude Code `settings.json` (`{"hooks": {<event>: [...]}}`,
+  the convention `host-environments.md` already documents) gets its real event/matcher/command
+  rows extracted structurally — not just "the word PreToolUse appeared somewhere." Nothing in
+  this module changed to know about any specific target; `extracted` is real data pulled from the
+  file, never prose this module authored about the file.
+- **`cartographer_scan.py`**: no code change needed — `extracted` flows through the existing
+  `**f` spread into every finding automatically, additive.
+- **`scripts/onboarding_card.py`** (new): renders the actual card SKILL.md has always promised —
+  one capability card per real evidenced agent/skill file (name, description, tools, straight
+  from `extracted`), a merged hook/trigger table for workflow-type concerns, plain evidence
+  tables for every other concern, the real boundary-pointer dependency list, and the real
+  exported source for every evidenced file, embedded verbatim. Every string in the module is
+  generic English about concerns and evidence stages — verified by pointing it at a completely
+  different real target (this repo's own `.claude/`) and getting back 14 correct capability
+  cards and a 9-row hook table with zero target-specific code in the generator.
+- **`bundle_synopsis.py`**: now always calls `onboarding_card.py` and writes
+  `onboarding-card.html` alongside README/handoff/report.html — the product surface, generated
+  every run, never an extra step an agent has to remember. `state.py`'s `shared` gate now
+  requires it present, the same way it already required README.md/handoff.json.
+- **`cartographer_run.py`**: the `validate-replication-bundle` task's completion condition
+  updated to name all three required surfaces.
+
+Verified live end to end against `.claude/` (14 agents, 7 commands, settings.json): the full
+`init` → `negotiated` → `elicited(skipped)` → scan → plan → export → `exported` → `shared` →
+`carded` → `delivered` pipeline ran clean with the new gate requirement in place, and
+`onboarding-card.html` rendered 14 real agent cards (each with its actual frontmatter
+description) plus the full 9-row hook table extracted structurally from `settings.json` — with
+no hand-authored content anywhere in the generator.
+
+Minor bump, matching the precedent set by 1.1.0 (which also added a new hard-required file to
+the `shared` gate): additive fields only (`extracted` on findings), one new generated artifact,
+no existing fill or contract invalidated.
+
 ## 2.0.0 (2026-07-18)
 
 The replication-grade rewrite. The Graey full-repo run (1.2.4) proved the

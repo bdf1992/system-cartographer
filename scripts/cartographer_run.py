@@ -175,7 +175,7 @@ def _seed_tasks(run):
           ["resolve-boundary-dispositions", "review-secret-findings"],
           "state.py refuses `shared` without both review surfaces present — this is that gate, named as a task.",
           "python scripts/bundle_synopsis.py --bundle " + run,
-          "README.md", "README.md and handoff.json both exist"),
+          "README.md", "README.md, handoff.json, and onboarding-card.html (the product surface) all exist"),
     ]
 
 

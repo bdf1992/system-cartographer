@@ -14,11 +14,19 @@ need context beyond their own file text — `ctx` carries whatever the caller
 (`internal_names`, `path_references`) rather than re-deriving it per file.
 
 Every validator returns a list of dicts:
-    {"evidence_stage": "structural"|"behavioral", "signal": "...", "locator_lines": [a,b]|None}
+    {"evidence_stage": "structural"|"behavioral", "signal": "...", "locator_lines": [a,b]|None,
+     "extracted": {...}|None}
 An empty list means: still just a candidate, and that's an honest answer, not
 a failure — most files matched by a broad glob are not going to be real.
+
+`extracted` carries whatever *structured* data the check actually pulled out of
+the file (a name, a description, a tool list, a trigger shape) — never prose
+this module authored about the target. A report generator renders cards from
+these fields mechanically; it never needs (and this module never has) any
+knowledge of what a specific target's agents or workflows are named or do.
 """
 import ast
+import json
 import os
 import re
 import sys
@@ -26,8 +34,8 @@ import sys
 FRONTMATTER_RE = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n", re.DOTALL)
 
 
-def _f(stage, signal, lines=None):
-    return {"evidence_stage": stage, "signal": signal, "locator_lines": lines}
+def _f(stage, signal, lines=None, extracted=None):
+    return {"evidence_stage": stage, "signal": signal, "locator_lines": lines, "extracted": extracted}
 
 
 def frontmatter(text):
@@ -53,7 +61,9 @@ def validate_agent(rel, text, ctx):
     if identity and tools:
         return [_f("structural",
                     f"frontmatter declares identity ({'name' if fm.get('name') else 'description'}) "
-                    f"and tool authority ({tools[:60]!r})", lines)]
+                    f"and tool authority ({tools[:60]!r})", lines,
+                    extracted={"name": fm.get("name"), "description": fm.get("description"),
+                               "tools": tools})]
     return []
 
 
@@ -65,24 +75,67 @@ def validate_skill(rel, text, ctx):
         return []
     return [_f("structural",
                 "frontmatter declares name + invocation description, with a real instruction body "
-                f"({len(body.strip())} chars past frontmatter)", lines)]
+                f"({len(body.strip())} chars past frontmatter)", lines,
+                extracted={"name": fm.get("name"), "description": fm.get("description")})]
 
 
 WORKFLOW_META_RE = re.compile(r"export\s+const\s+meta\s*=")
 WORKFLOW_CALL_RE = re.compile(r"\b(?:phase|pipeline|parallel)\s*\(")
+WORKFLOW_META_NAME_RE = re.compile(r"name\s*:\s*['\"]([^'\"]+)['\"]")
+WORKFLOW_META_DESC_RE = re.compile(r"description\s*:\s*['\"]([^'\"]+)['\"]")
 GH_ACTIONS_ON_RE = re.compile(r"^\s*on:\s*$", re.MULTILINE)
 GH_ACTIONS_JOBS_RE = re.compile(r"^\s*jobs:\s*$", re.MULTILINE)
+GH_ACTIONS_NAME_RE = re.compile(r"^\s*name:\s*(.+)$", re.MULTILINE)
+HOOK_EVENT_NAMES = ("PreToolUse", "PostToolUse", "SessionStart", "SessionEnd",
+                    "UserPromptSubmit", "Stop", "Notification", "SubagentStop")
+
+
+def _hook_config_rows(data):
+    """Structural, host-generic: any config shaped like {"hooks": {<event>: [{"matcher":,
+    "hooks":[{"command":...}]}]}} — the Claude Code hook convention documented in
+    host-environments.md, not specific to any one target's hook scripts."""
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return None
+    rows = []
+    for event, groups in hooks.items():
+        if event not in HOOK_EVENT_NAMES or not isinstance(groups, list):
+            continue
+        for group in groups:
+            matcher = group.get("matcher") if isinstance(group, dict) else None
+            for h in (group.get("hooks") or []) if isinstance(group, dict) else []:
+                cmd = h.get("command") if isinstance(h, dict) else None
+                if cmd:
+                    rows.append({"event": event, "matcher": matcher, "command": cmd})
+    return rows or None
 
 
 def validate_workflow(rel, text, ctx):
+    if os.path.basename(rel).lower() in ("settings.json", "settings.local.json") or rel.endswith("settings.json"):
+        try:
+            data = json.loads(text)
+        except (ValueError, TypeError):
+            return []
+        rows = _hook_config_rows(data)
+        if rows:
+            return [_f("structural", f"{len(rows)} real hook binding(s) across "
+                        f"{len({r['event'] for r in rows})} lifecycle event(s)", None,
+                        extracted={"trigger": "host-hook-config", "hook_rows": rows})]
+        return []
     if WORKFLOW_META_RE.search(text) and WORKFLOW_CALL_RE.search(text):
+        name_m, desc_m = WORKFLOW_META_NAME_RE.search(text), WORKFLOW_META_DESC_RE.search(text)
         return [_f("structural",
                     "declares meta.phases and calls phase()/pipeline()/parallel() — an ordered, "
-                    "branchable sequence, not just a name containing 'workflow'", None)]
+                    "branchable sequence, not just a name containing 'workflow'", None,
+                    extracted={"trigger": "workflow-script", "name": name_m.group(1) if name_m else None,
+                               "description": desc_m.group(1) if desc_m else None})]
     if GH_ACTIONS_ON_RE.search(text) and GH_ACTIONS_JOBS_RE.search(text):
-        return [_f("structural", "GitHub Actions trigger (on:) with an ordered jobs: list", None)]
+        name_m = GH_ACTIONS_NAME_RE.search(text)
+        return [_f("structural", "GitHub Actions trigger (on:) with an ordered jobs: list", None,
+                    extracted={"trigger": "github-actions", "name": name_m.group(1).strip() if name_m else None})]
     if re.search(r"cron_expression", text) and re.search(r"\b(steps|phases|tasks)\s*:", text):
-        return [_f("structural", "cron trigger with a declared step/phase list", None)]
+        return [_f("structural", "cron trigger with a declared step/phase list", None,
+                    extracted={"trigger": "cron"})]
     return []
 
 

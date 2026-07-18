@@ -29,7 +29,11 @@ import html
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import onboarding_card  # noqa: E402
 
 STATE_ORDER = ["initialized", "negotiated", "elicited", "exported", "shared",
                "reconciled", "carded", "delivered"]
@@ -483,8 +487,21 @@ from inside the bundle on any machine. See also README.md / handoff.json.</foote
         f.write(html_doc)
 
 
+def write_onboarding_card(bundle, target_name):
+    """The standing final-deliverable template (SKILL.md's 'what done means'): capability +
+    requirement cards for every real agent/skill/workflow, built only from structural findings,
+    with the real exported source underneath every claim. Every run produces this — it is the
+    product surface, not an optional extra; README/handoff/report.html above are the process
+    surfaces around it. Never skipped, never hand-authored per target."""
+    doc = onboarding_card.build(scan_dir=None, bundle_dir=bundle, target_name=target_name)
+    path = os.path.join(bundle, "onboarding-card.html")
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(doc)
+    return path
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Generate bundle README.md + handoff.json + report.html")
+    ap = argparse.ArgumentParser(description="Generate bundle README.md + handoff.json + report.html + onboarding-card.html")
     ap.add_argument("--bundle", required=True)
     ap.add_argument("--target-name", default=None)
     args = ap.parse_args()
@@ -492,7 +509,13 @@ def main():
     handoff = write_handoff(args.bundle, c)
     write_readme(args.bundle, c, handoff)
     write_report_html(args.bundle, c, handoff)
-    print(f"synopsis: README.md + handoff.json + report.html written — state {c['current']}, "
+    card_path = None
+    try:
+        card_path = write_onboarding_card(args.bundle, args.target_name)
+    except Exception as exc:  # the process surfaces must still land even if the card can't
+        print(f"WARN: onboarding-card.html not generated — {exc}", file=sys.stderr)
+    print(f"synopsis: README.md + handoff.json + report.html"
+          f"{' + onboarding-card.html' if card_path else ''} written — state {c['current']}, "
           f"{len(handoff['actions'])} action(s), {len(c['unresolved_warnings'])}/{len(c['warnings'])} "
           f"unresolved warning(s)")
 
