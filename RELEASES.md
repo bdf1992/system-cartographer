@@ -1,5 +1,39 @@
 # Releases
 
+## 1.3.0 (2026-07-18)
+
+New `scripts/cartographer_run.py` — a first-touch run ledger, so an agent has a visible
+work contract before the first environment probe instead of reconstructing the workflow
+from this file's prose. `init` creates `<run>/work.json` (typed tasks: phase, owner,
+`blocked_by`, a `completion_evidence` artifact + condition) and regenerates `TODO.md`
+from it after every mutation — never hand-edited, the way any generated file isn't. The
+seed task graph mirrors this skill's own phase list (negotiate → elicit → scan →
+reconcile → cycle → assemble → share); every seed task's completion evidence points at
+an artifact a different script in this skill already produces (`environment.json`,
+`scan/scan.json`, `manifest.json`, `README.md`), so the ledger wraps existing mechanism
+rather than inventing a parallel one. Two gates are real, not descriptive: `start`
+refuses a task whose `blocked_by` isn't satisfied, and `complete` refuses to close a
+task whose artifact doesn't exist — an agent's say-so is not evidence. A task marked
+`skippable` (elicit, informed-rescan) can close via `--skip <reason>` instead, matching
+the precedent 1.2.4 itself set (elicit explicitly skipped, no builder present). Discovered
+work lands with `add-task --discovered-by <what surfaced it>` instead of being buried in
+`patterns.json`.
+
+Verified live end to end against this skill's own repo as target (`init` only stats the
+target directory — no content read): status blocked `scan-target` on the real message
+"blocked by unfinished task(s): elicit-blind-beliefs" before elicitation closed; `complete
+confirm-roots` refused with "required artifact missing — environment.json" before the
+probe had actually run, then succeeded once it had; skipping `elicit-blind-beliefs`
+correctly unblocked `scan-target`, which then ran the real scanner and closed on its real
+`scan/scan.json`; an `add-task --discovered-by boundary-pointer` landed mid-run and
+appeared `ready` the moment its one blocker was already done; the regenerated `TODO.md`
+correctly reported "Current phase:: Reconcile" with four tasks in `## Done` (one shown
+skipped, with its reason) after that sequence. `state.py`'s own save-state ladder is
+untouched by this addition — `init` calls its existing `cmd_init` once and nothing more;
+the two ladders (fine-grained tasks, coarse save-states) stay independent, and finishing
+a phase's tasks is the cue to call `state.py advance`, not a trigger that does it for you.
+Minor bump: additive only, no existing script's contract changed.
+
 ## 1.2.4 (2026-07-18)
 
 Full-scale run: a subagent actually played the System Cartographer role (Negotiate →

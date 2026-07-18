@@ -127,6 +127,35 @@ final phase — it's a transition available at every state boundary, and sharing
 evidence early (`shared` after `exported`) is a first-class outcome, not an
 incomplete run.
 
+## First touch: the run ledger
+
+Before any environment probe, `scripts/cartographer_run.py init` creates the run directory
+and a work ledger — `work.json` (typed tasks: phase, owner, `blocked_by`, a
+`completion_evidence` artifact and condition) plus `TODO.md`, a human-readable view
+**always regenerated from `work.json`**, never hand-edited. It touches nothing but a
+directory-existence stat on the target (no content read) and mirrors this file's own
+phase list as a seed task graph, each task's completion evidence pointing at a real
+artifact another script in this skill already produces — the ledger wraps existing
+mechanism, it does not invent a parallel one. `complete` refuses to close a task whose
+artifact doesn't exist yet; `start` refuses a task whose `blocked_by` isn't satisfied
+(this is what makes "scan before elicit is terminal" a mechanical refusal, not a prose
+warning to remember). Discovered work — a boundary pointer, a secret finding, an
+oversized file — lands with `add-task --discovered-by <what surfaced it>` instead of
+being buried in `patterns.json`.
+
+```bash
+RUN=cartography-run
+python scripts/cartographer_run.py init --target /path/to/target --run "$RUN" --actor <you>
+python scripts/cartographer_run.py status --run "$RUN"        # what's ready, what's blocked, why
+```
+
+A fresh agent resumes by reading `$RUN/TODO.md`, not by reconstructing the workflow from
+this file's prose. `work.json` is the source of truth; `sync` recomputes every task's
+status from its `blocked_by` graph, so a run directory alone (no chat history) is enough
+to reconstruct exactly what's owed. This ledger tracks finer-grained work *between*
+`scripts/state.py`'s coarser save-state checkpoints — finishing a phase's tasks is the
+cue to call `state.py advance <name>`, not a replacement for it.
+
 ## Host environment & the shipped bundle
 
 Start every unfamiliar host with:
