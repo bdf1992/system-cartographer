@@ -21,10 +21,15 @@ the export path, not an optional nicety.
 import argparse
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 STATE_ORDER = ["initialized", "negotiated", "elicited", "exported", "shared",
                "reconciled", "carded", "delivered"]
+
+# Same heuristic as session_telemetry.py's FIX_RE — kept identical so a
+# fix/revert ratio computed from either source means the same thing.
+FIX_RE = re.compile(r"\b(fix|revert|hotfix|patch)\b", re.IGNORECASE)
 
 NEXT_ACTIONS = {
     "negotiated": [("agent", "Elicit the builder's blind beliefs across the twelve concerns "
@@ -52,6 +57,33 @@ def load_json(path):
             return json.load(f)
     except (OSError, ValueError):
         return None
+
+
+def _git_analysis(telemetry):
+    """Normalize the two real shapes this can arrive in — session_telemetry.py's
+    own {"git_analysis": {...}} output, or the scan's built-in session-quality
+    concern, which (find_export's own telemetry.json/session-quality.json
+    fallback treats as interchangeable) instead nests the same commit data
+    under {"analysis": {"commit_count", "recent_commits"}} with no git_analysis
+    key at all. Reading only the first shape silently reported real git
+    history as absent whenever a bundle exported the scan's own session-quality
+    evidence instead of running session_telemetry.py separately."""
+    if not telemetry:
+        return {}
+    g = telemetry.get("git_analysis")
+    if g:
+        return g
+    analysis = telemetry.get("analysis") or {}
+    commits = analysis.get("recent_commits") or []
+    if not commits:
+        return {}
+    dates = sorted(c["date"] for c in commits if c.get("date"))
+    fix_like = sum(1 for c in commits if FIX_RE.search(c.get("subject") or ""))
+    return {
+        "commit_count": analysis.get("commit_count", len(commits)),
+        "date_range": [dates[0], dates[-1]] if dates else ["?", "?"],
+        "fix_or_revert_subject_ratio": round(fix_like / len(commits), 2) if commits else None,
+    }
 
 
 def find_export(bundle, *names):
@@ -183,7 +215,7 @@ def write_readme(bundle, c, handoff):
                 f"{k} ({v})" for k, v in sorted(cov.items(), key=lambda kv: -kv[1])) + ".")
         a("")
     if c["telemetry"]:
-        g = c["telemetry"].get("git_analysis", {})
+        g = _git_analysis(c["telemetry"])
         if g.get("commit_count"):
             a(f"History: {g['commit_count']} commit(s) spanning "
               f"{'–'.join(g.get('date_range', ['?', '?']))}, fix/revert subject ratio "

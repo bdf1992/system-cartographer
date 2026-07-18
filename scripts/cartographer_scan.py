@@ -26,8 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL_ROOT = os.path.dirname(HERE)
 DEFAULT_REGISTRY = os.path.join(SKILL_ROOT, "references", "concerns.registry.json")
 DEFAULT_EXCLUDES = [
-    ".git/**", "node_modules/**", "vendor/**", ".venv/**", "venv/**",
-    "__pycache__/**", "dist/**", "build/**", "coverage/**", "*.pyc",
+    "**/.git/**", "**/node_modules/**", "**/vendor/**", "**/.venv/**", "**/venv/**",
+    "**/__pycache__/**", "**/dist/**", "**/build/**", "**/coverage/**", "*.pyc",
 ]
 
 
@@ -36,9 +36,9 @@ def _norm(path):
 
 
 def _matches(rel_path, globs):
-    rel_path = _norm(rel_path).lstrip("./")
+    rel_path = _norm(rel_path)
     for pattern in globs:
-        pattern = _norm(pattern).lstrip("./")
+        pattern = _norm(pattern)
         if fnmatch.fnmatch(rel_path, pattern):
             return True
         while pattern.startswith("**/"):
@@ -129,15 +129,20 @@ def resolve_boundary_target(dst, root, src_rel):
 
 
 def classify_relation(resolved, root):
+    # normcase makes the comparison match the filesystem's own identity rules —
+    # a no-op on POSIX, but on Windows it folds drive-letter/segment case so a
+    # reference written as "c:\..." isn't wrongly called a stranger to "C:\...".
     root_n = os.path.normpath(os.path.abspath(root))
     resolved_n = os.path.normpath(resolved)
-    if resolved_n == root_n:
+    root_cf = os.path.normcase(root_n)
+    resolved_cf = os.path.normcase(resolved_n)
+    if resolved_cf == root_cf:
         return "self"
-    if resolved_n.startswith(root_n + os.sep):
+    if resolved_cf.startswith(root_cf + os.path.normcase(os.sep)):
         return "descendant"
-    if root_n.startswith(resolved_n + os.sep):
+    if root_cf.startswith(resolved_cf + os.path.normcase(os.sep)):
         return "ancestor"
-    if os.path.dirname(resolved_n) == os.path.dirname(root_n):
+    if os.path.normcase(os.path.dirname(resolved_n)) == os.path.normcase(os.path.dirname(root_n)):
         return "sibling"
     return "cousin"
 

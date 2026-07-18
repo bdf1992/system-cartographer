@@ -1,5 +1,51 @@
 # Releases
 
+## 1.2.4 (2026-07-18)
+
+Full-scale run: a subagent actually played the System Cartographer role (Negotiate →
+Scan → Join → Assemble → Share, per `SKILL.md`'s own phases, Elicit explicitly skipped
+with a documented reason — no builder present for a real commissioning) against the
+whole graey repo — 7666 files, not the 24-file `.claude/` slice 1.2.3 was proven on.
+Reached `shared` for real, including one genuine reopen-and-refix cycle mid-run. Four
+more bugs, all found by actually running the tool at this scale and all proven with a
+live before/after re-run:
+
+- **`DEFAULT_EXCLUDES` only matched at the scan root**, never nested — `"node_modules/**"`
+  needs a target's *own* node_modules directly under the declared root; a repo this
+  size has `workspace/viewport-ext/node_modules`, 168 stray `__pycache__` dirs, and a
+  synthetic PC-crawl tree of fake vendor dirs several levels down, all silently walked
+  anyway. Prefixed every default with `**/`. Edges dropped 17380 → 7683, and
+  `hotspot_files` went from 100% vendored noise to real graey files.
+- **The boundary scanner only recognized forward-slash paths** — every Windows
+  absolute path (`C:\Users\...`) was invisible to it, including one this repo's own
+  `domains/Qualia/engine/MISSION-PROMPT.md` explicitly names as load-bearing ("the
+  mother lode"). Added a `win_abs_path` pattern to `boundary.scan.json`; pointers went
+  0 → 589 real on a repo where they should obviously have been nonzero.
+- **That fix exposed a case-sensitivity bug in `classify_relation`**: a lowercase-drive
+  path (`c:\Users\...`, written that way in one real `.workflow.js` file) compared
+  unequal to the uppercase-drive scan root, misclassifying an internal file as an
+  external "cousin". Fixed with `os.path.normcase`; count dropped 589 → 572, exactly
+  the false positives, verified by pointer id.
+- **`bundle_synopsis.py` read the wrong JSON shape for git history.** The scan's own
+  `session-quality` concern nests commit data under `["analysis"]`; the synopsis script
+  only ever checked `["git_analysis"]` (the shape `session_telemetry.py` produces
+  separately) — so a bundle built from the scan's own evidence *always* reported "no
+  git history found," even with 200 real commits sitting right there. Added a
+  shape-normalizing helper; the README now correctly reads "200 commit(s) spanning
+  2026-07-13–2026-07-17."
+
+Read the resulting bundle's `README.md` critically, the way a human recipient would:
+"Points beyond this map" correctly identifies `C:\Users\bdf19\.claude` as a genuine
+load-bearing dependency (the global Claude Code home this very tool runs from) and
+correctly bulk-excludes PC-wide filesystem-inventory noise (vendored HuggingFace/Ollama
+model blobs, `pagefile.sys`) with specific, defensible reasoning per class, rather than
+either drowning in it or silently dropping it. Of 572 real pointers, 10 got individual
+reasoning after reading their actual source files, 544 were bulk-dispositioned across
+two genuinely coherent classes (a PC-wide crawl domain, a local-projects discovery
+audit) with the methodology stated plainly, and 18 stayed honestly `deferred` rather
+than guessed — the replication test this tool holds everything else to, applied to its
+own output.
+
 ## 1.2.3 (2026-07-17)
 
 Premise check: does the tool actually map a real agentic system, not just run without
