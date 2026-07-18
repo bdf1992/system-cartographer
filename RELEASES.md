@@ -1,5 +1,19 @@
 # Releases
 
+## 2.1.1 (2026-07-18)
+
+Public-release cleanup pass, no behavior contract changes, patch bump. Audited the whole skill
+for anything specific to the private repo it was developed and dogfooded against: one
+inconsistent example actor name in `state.py`'s usage docstring, one ironic self-reference in
+`onboarding_card.py`'s own "this is generic" docstring, one motivating-bug reference in
+`build_export_manifest.py`, and two examples in `boundary-protocol.md` (a path example, a
+dogfooding number tied to a named repo root). All genericized without losing the substance of
+what each was documenting. `RELEASES.md`'s dogfooding history (five prior entries, each a real
+bug found by actually running the tool at scale) is kept — the numbers and fixes are real
+evidence this tool works, not something to launder away — but every mention of the specific
+private repo it was tested against is now a generic description ("a large multi-agent repo," "a
+real subproject inside it") instead of a name.
+
 ## 2.1.0 (2026-07-18)
 
 The standing product template. 2.0.0 fixed *which* evidence is real; this release fixes what a
@@ -49,8 +63,8 @@ no existing fill or contract invalidated.
 
 ## 2.0.0 (2026-07-18)
 
-The replication-grade rewrite. The Graey full-repo run (1.2.4) proved the
-scanner could walk 7,666 files and name real evidence — but its bundle still
+The replication-grade rewrite. The full-repo run against a large multi-agent
+repo (1.2.4) proved the scanner could walk 7,666 files and name real evidence — but its bundle still
 shipped scan JSON, not the source files that evidence cited, because nothing
 in the pipeline distinguished a glob candidate from a validated finding, or
 planned what evidence a bundle actually needed before copying started. This
@@ -178,8 +192,8 @@ verified live: the two regressions above, reproduced broken before their
 fix and correct after, on this same pipeline.
 
 Not done in this pass, named rather than implied: the full 7,666-file/467MB
-Graey-repo fitness run this epic's acceptance section asks for was not
-re-run — this release is proven on a real but much smaller target, not yet
+fitness run against that large multi-agent repo this epic's acceptance
+section asks for was not re-run — this release is proven on a real but much smaller target, not yet
 re-proven at that scale. Several of the epic's sixteen acceptance tests
 (directory-move portability, deleted-original-repo validation, an `included`
 boundary with no evidence blocking `shared` specifically) have the
@@ -235,20 +249,20 @@ Minor bump: additive only, no existing script's contract changed.
 Full-scale run: a subagent actually played the System Cartographer role (Negotiate →
 Scan → Join → Assemble → Share, per `SKILL.md`'s own phases, Elicit explicitly skipped
 with a documented reason — no builder present for a real commissioning) against the
-whole graey repo — 7666 files, not the 24-file `.claude/` slice 1.2.3 was proven on.
+whole target repo — 7666 files, not the 24-file `.claude/` slice 1.2.3 was proven on.
 Reached `shared` for real, including one genuine reopen-and-refix cycle mid-run. Four
 more bugs, all found by actually running the tool at this scale and all proven with a
 live before/after re-run:
 
 - **`DEFAULT_EXCLUDES` only matched at the scan root**, never nested — `"node_modules/**"`
   needs a target's *own* node_modules directly under the declared root; a repo this
-  size has `workspace/viewport-ext/node_modules`, 168 stray `__pycache__` dirs, and a
+  size has a `node_modules` nested inside one subproject, 168 stray `__pycache__` dirs, and a
   synthetic PC-crawl tree of fake vendor dirs several levels down, all silently walked
   anyway. Prefixed every default with `**/`. Edges dropped 17380 → 7683, and
-  `hotspot_files` went from 100% vendored noise to real graey files.
+  `hotspot_files` went from 100% vendored noise to real target files.
 - **The boundary scanner only recognized forward-slash paths** — every Windows
   absolute path (`C:\Users\...`) was invisible to it, including one this repo's own
-  `domains/Qualia/engine/MISSION-PROMPT.md` explicitly names as load-bearing ("the
+  deeply-nested doc file that explicitly names it as load-bearing ("the
   mother lode"). Added a `win_abs_path` pattern to `boundary.scan.json`; pointers went
   0 → 589 real on a repo where they should obviously have been nonzero.
 - **That fix exposed a case-sensitivity bug in `classify_relation`**: a lowercase-drive
@@ -265,7 +279,7 @@ live before/after re-run:
   2026-07-13–2026-07-17."
 
 Read the resulting bundle's `README.md` critically, the way a human recipient would:
-"Points beyond this map" correctly identifies `C:\Users\bdf19\.claude` as a genuine
+"Points beyond this map" correctly identifies the user's global `.claude` home as a genuine
 load-bearing dependency (the global Claude Code home this very tool runs from) and
 correctly bulk-excludes PC-wide filesystem-inventory noise (vendored HuggingFace/Ollama
 model blobs, `pagefile.sys`) with specific, defensible reasoning per class, rather than
@@ -279,7 +293,7 @@ own output.
 ## 1.2.3 (2026-07-17)
 
 Premise check: does the tool actually map a real agentic system, not just run without
-crashing? Pointed it at `graey/.claude/` — 15 real Claude Code subagent definitions, a
+crashing? Pointed it at a real target's `.claude/` — 15 real Claude Code subagent definitions, a
 `settings.json` with real hooks, real commands — the exact evidence set
 `host-environments.md`'s own Claude Code row names. First result: **zero edges across
 all eleven concerns.** Two compounding bugs, both load-bearing:
@@ -359,7 +373,7 @@ it before this release and still don't.
 
 Release-readiness pass — no behavior contract changes, patch bump. Found by driving the
 whole phase lifecycle for real (self-scan plus a second live run against
-`workspace/reception` in the graey repo, through probe, scan, telemetry, every state
+one real subproject inside a large multi-agent repo, through probe, scan, telemetry, every state
 transition, disposition, `--follow-boundaries`, and the registry validate/propose
 commands) rather than reading the code. Five fixes, all bugs the dogfooding actually
 hit, none design changes:
@@ -402,7 +416,7 @@ reproduced both the miss and the hit).
 
 ## 1.2.0 (2026-07-17)
 
-Boundary pointers. A live run against `workspace/reception` in the graey repo (a real
+Boundary pointers. A live run against one real subproject inside a large multi-agent repo (a real
 QA-agent commissioning) surfaced a structural gap by luck: the target's own docs named
 the code that actually implements it (`tools/session/{claim,route}.py` and the
 SessionStart hook chain), but that code lives outside the declared root and the scan

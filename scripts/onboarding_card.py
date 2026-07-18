@@ -16,7 +16,7 @@ already pulled out of the target's own files (a frontmatter `name:`/
 `description:`, a real hook binding, an import), or from patterns.json's own
 generic fields (summary counts, boundary pointers). Point this at any target
 system and it renders the same template from that target's own data — nothing
-here is graey-specific, or specific to any other one target.
+here is specific to any one target.
 
     python onboarding_card.py --scan-dir <run>/scan --bundle <run> --out <run>/onboarding-card.html
 """

@@ -4,9 +4,9 @@
 cartographer_scan.py's findings answer "is this evidence real" (candidate /
 structural / behavioral / observed / confirmed). This script is the next
 question: given real evidence, *what actually ships*, and why. Historically
-that decision was a hand-authored manifest.json — this is what made the
-Graey run's bundle ship the scan's own JSON instead of the source files the
-scan cited: nobody wrote the step that says "the finding at
+that decision was a hand-authored manifest.json — this is what made an early
+full-repo run's bundle ship the scan's own JSON instead of the source files
+the scan cited: nobody wrote the step that says "the finding at
 agent/foo.md:12 needs foo.md itself in the bundle."
 
 Only structural+ findings ever earn a plan entry — a bare candidate is never

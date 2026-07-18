@@ -18,7 +18,7 @@ Every file the scan already reads (for any concern) is also checked against
 `references/boundary.scan.json`'s path-shaped-token patterns: bare relative *file*
 paths with an extension (`tools/session/route.py`), markdown link targets
 (`[x](path/to/y.md)`), and bare relative *directory* paths with no extension
-(`workspace/descent`) — the last of these is what lets a directory-shaped mention (a
+(`src/pipeline`) — the last of these is what lets a directory-shaped mention (a
 peer workstation named in prose, not linked) become a followable pointer at all. Each
 match is resolved against three candidate bases, in order: the referencing file's own
 directory, the target root, and the scan's launch directory. The first that lands on a
@@ -30,8 +30,8 @@ workstation folder in a larger monorepo). Launch the scan from the target's repo
 (or nearest shared ancestor) so that base actually resolves those — launching from
 somewhere else (the skill's own directory, an unrelated cwd) silently drops otherwise-
 real pointers into `unresolved` with no error, since `os.getcwd()` is the only source
-for that third base. Confirmed live: the same `workspace/reception` scan surfaced 0
-resolved pointers launched from elsewhere and 38 launched from the graey repo root.
+for that third base. Confirmed live on a real target: the same scan surfaced 0
+resolved pointers launched from elsewhere and 38 launched from the target's repo root.
 
 The directory-token pattern is the noisiest of the three by construction — it has no
 extension to anchor on, so ordinary slash-separated prose matches the same shape a real

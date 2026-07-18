@@ -12,7 +12,7 @@ are findings about the system, not logistics).
     python state.py --bundle ./bundle advance elicited --actor "qa-manager" --note "12 concerns asked, 2 skipped"
     python state.py --bundle ./bundle advance exported --actor "qa-manager"
     python state.py --bundle ./bundle advance shared --actor "qa-manager" --note "gh:org/qa-agent-cartography (private)"
-    python state.py --bundle ./bundle reopen exported --actor "bdo-agent" --note "unevidenced claim names second repo; rescan"
+    python state.py --bundle ./bundle reopen exported --actor "qa-manager" --note "unevidenced claim names second repo; rescan"
     python state.py --bundle ./bundle show
 
 See references/save-states.md for what each state means, who produces it,
