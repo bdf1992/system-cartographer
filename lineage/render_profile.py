@@ -134,9 +134,10 @@ def page(nodes: dict, edges: list) -> str:
         "suites, checks and proofs, which are real but not the same unit, so I don't "
         "add them together.",
         "",
-        f"[How they relate]({LINEAGE_URL}) is written down with the file and line that "
-        f"shows each one — {len(edges)} relations, and the {len(unconnected)} that "
-        "connect to nothing at all. I'd rather show the real shape than a tidy one.",
+        f"[How they relate]({LINEAGE_URL}) is written down, each relation with the "
+        f"file and line that shows it: {len(edges)} of them. So are the "
+        f"{len(unconnected)} that connect to nothing, and the relations I looked "
+        "for and could not evidence.",
         "",
         "<details>",
         "<summary>Everything else</summary>",

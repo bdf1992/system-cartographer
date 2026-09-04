@@ -6,14 +6,13 @@
 
 I'm a word builder who got handed programming, AI, and nine years of product work.
 
-Product was naming things until they could be built — metadata, taxonomy, search,
-versioning, who is allowed to do what. Then the same hands got a compiler and a
-model, and the naming stopped stopping at the spec.
+Product was naming things precisely enough that they could be built: metadata,
+taxonomy, search, versioning, who is allowed to do what. The {repos} repositories
+here carry that on.
 
-These {repos} repositories are what happened. Most circle one stubborn idea:
-**a claim should have to carry its evidence.** Records that keep their own history.
-Work a stranger can check without having been there. AI that lives inside the
-rules rather than beside them.
+Most of them are after the same thing. When a claim carries the evidence for it,
+two parties can hold the same state instead of each holding a copy and a separate
+account of it. They end up in one frame rather than two. That works between people.
+Whether it works between a person and a model is what most of this is testing.
 
-Everything below names a command you can run, and what it returned when it was run
-on {observed}.
+Everything below names a command you can run and what it returned on {observed}.
