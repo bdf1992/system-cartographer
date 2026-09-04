@@ -11,7 +11,7 @@ disagree. A name starts meaning two things. Somebody changed a rule and nobody
 wrote down that they did. Fixing that is metadata, taxonomy, versioning and
 access control — which is also, it turns out, nine years of my day job.
 
-So the {repos} repositories here are largely one question in different clothes.
+So the {repos} repositories on this account are largely one question in different clothes.
 When a claim carries the evidence for it, two parties can hold the same state
 instead of each keeping a copy with a separate account of it, and they end up in
 one frame rather than two. That works between people. Whether it works between a
