@@ -99,7 +99,7 @@ def resolve(nodes: dict, edges: list) -> dict[str, str]:
         "unconnected": str(sum(
             1 for n in nodes if not any(n in (e["from"], e["to"]) for e in edges))),
         "observed": next(iter(nodes.values()))["evidence"]["observed"],
-        "lineage": f"[The full record]({LINEAGE_URL})",
+        "lineage": f"[the record]({LINEAGE_URL})",
     }
     for name, node in nodes.items():
         shown = node["repo"].split("/", 1)[1]
@@ -150,12 +150,17 @@ def selfcheck(nodes: dict, edges: list) -> int:
     if left:
         failures.append(f"unresolved references remain: {left}")
 
-    declared = sum(int(COUNT_RE.search(nodes[n]["evidence"]["result"]).group(1))
-                   for n in contributors)
-    if declared != total:
-        failures.append(f"stated total {total} is not the sum of its parts {declared}")
-
     plain = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+
+    # The page carries the meaning and the record carries the specifics, so the
+    # page states no counts of its own. That only holds up while it points at
+    # the record: an unbacked claim that everything is checked is worse than no
+    # claim at all.
+    if LINEAGE_URL not in text:
+        failures.append("the page claims the work is checked but never links the record")
+    if re.search(r"\d", plain):
+        stated = sorted(set(re.findall(r"\d[\d,]*", plain)))
+        failures.append(f"the page states figures instead of pointing at them: {stated}")
 
     picked = featured(nodes)
     if len(picked) != 6:
@@ -211,8 +216,7 @@ def selfcheck(nodes: dict, edges: list) -> int:
     linked = sum(1 for n in nodes
                  if f"](https://github.com/{nodes[n]['repo']})" in text)
     print(f"PASS — {linked} of {len(nodes)} repositories referenced, every reference "
-          f"resolved, {total:,} tests summed from {len(contributors)} observed "
-          f"results only.")
+          f"resolved, no figures stated on the page, record linked.")
     return 0
 
 
