@@ -1,0 +1,308 @@
+# The relations between bdf1992's public repositories, with the evidence for each.
+#
+# Rules this file is kept under:
+#   - Every node carries one plain claim and a command someone else can run.
+#   - Every recorded result was observed by running the command, not copied
+#     from a prior report.
+#   - Every edge names where the relation is visible in the repositories. An
+#     edge that cannot be evidenced is not recorded.
+#   - Private repositories are out of scope.
+#
+# Observed 2026-09-04. Forks are excluded: eight of the nine contain none of
+# the owner's commits.
+
+schema: lineage/v1
+observed: 2026-09-04
+
+nodes:
+  soveraeign:
+    repo: bdf1992/Soveraeign
+    status: active
+    line: substrate
+    claim: "People and AI models work through the same records, permissions and history."
+    evidence:
+      command: "python scripts/verify.py"
+      result: "50 checks, exit 0"
+      observed: 2026-09-04
+
+  ontum:
+    repo: bdf1992/ontum
+    status: active
+    line: substrate
+    claim: "A governed gateway for autonomous AI work, where the append-only log is the truth and every other view is folded from it."
+    evidence:
+      command: "python -m unittest discover -s tests"
+      result: "1612 tests, 2 skipped, OK"
+      observed: 2026-09-04
+
+  onton:
+    repo: bdf1992/onton
+    status: archived
+    line: substrate
+    claim: "Types how a generated artifact was formed, so trust carries across human, machine and composed work."
+    evidence:
+      command: "python -m pytest -q"
+      result: "1915 passed, 5 skipped"
+      observed: 2026-09-04
+    note: >-
+      Archived on GitHub, so it takes no more commits. A fix for a
+      stale-ticket ordering bug is written and verified but cannot be pushed
+      while the repository stays archived.
+
+  schematically:
+    repo: bdf1992/schematically
+    status: active
+    line: surface
+    claim: "A schematic editor whose document is a semantic model of components, parts and wires rather than a drawing."
+    evidence:
+      command: "python scripts/qa.py"
+      result: "exit 0, 37 suites + 17 JS syntax checks, 14 mutants killed 0 survived"
+      observed: 2026-09-04
+
+  canvas:
+    repo: bdf1992/Canvas
+    status: superseded
+    line: surface
+    claim: "Arranges addressable things in space, relates them visibly, and wires a subset into executable circuits."
+    evidence:
+      command: "python -m pytest -q"
+      result: "30 passed"
+      observed: 2026-09-04
+
+  familiar:
+    repo: bdf1992/familiar
+    status: active
+    line: instrument
+    claim: "A local-first workbench for agent guidance that a practitioner has to accept before it binds."
+    evidence:
+      command: "python -m pytest -q"
+      result: "463 passed, 86 subtests passed"
+      observed: 2026-09-04
+
+  owl:
+    repo: bdf1992/Owl
+    status: active
+    line: method
+    claim: "Turns a rough ask into a complete inspectable attempt early, then redraws it from feedback."
+    evidence:
+      command: "cd draw-the-owl && python -m pytest -q"
+      result: "38 passed, 12 subtests passed"
+      observed: 2026-09-04
+
+  howdo:
+    repo: bdf1992/HowDo
+    status: active
+    line: method
+    claim: "A discipline for understanding a problem before acting on it."
+    evidence:
+      command: "python -m pytest -q"
+      result: "591 passed, 273 subtests passed"
+      observed: 2026-09-04
+
+  s4:
+    repo: bdf1992/S4
+    status: experiment
+    line: method
+    claim: "Tests whether the two-axis split between programs and protocols survives being handed to a fresh agent."
+    evidence:
+      command: "PYTHONPATH=. python boards/collectors/test_factory_install_drift.py"
+      result: "exit 0, factory install_drift 5/5 cases pass"
+      observed: 2026-09-04
+
+  ddd-ccc:
+    repo: bdf1992/DDD-CCC
+    status: active
+    line: instrument
+    claim: "Measures how much of a repository's meaning is actually covered by its tests, and names the gaps."
+    evidence:
+      command: "python -m s3.cubes.run_proofs"
+      result: "4 green, 0 fail, acceptance met"
+      observed: 2026-09-04
+
+  context:
+    repo: bdf1992/context
+    status: active
+    line: instrument
+    claim: "A single-file harness that installs into any directory and gives an agent a bounded world to work in."
+    evidence:
+      command: "none — no test suite, by design"
+      result: "not applicable"
+      observed: 2026-09-04
+
+  evident:
+    repo: bdf1992/evident
+    status: active
+    line: instrument
+    claim: "A session-based instrument for bootstrapping how an organization works, in about thirty minutes."
+    evidence:
+      command: "python -m pytest -q"
+      result: "1 passed"
+      observed: 2026-09-04
+
+  system-cartographer:
+    repo: bdf1992/system-cartographer
+    status: active
+    line: instrument
+    claim: "Reverse-engineers an undocumented agent or AI-native system into a description complete enough to rebuild it."
+    evidence:
+      command: "none — no test suite, by design"
+      result: "not applicable"
+      observed: 2026-09-04
+
+  small-world:
+    repo: bdf1992/small-world
+    status: active
+    line: world
+    claim: "A bounded lab for generative-world architecture, built for Catalyst Core."
+    evidence:
+      command: "npm test"
+      result: "9 suites, exit 0"
+      observed: 2026-09-04
+
+  ide:
+    repo: bdf1992/ide
+    status: active
+    line: surface
+    claim: "A small in-chat editor that opens in a side panel and reuses proven browser components."
+    evidence:
+      command: "cd poc/neural-elaboration && python -m pytest -q"
+      result: "17 passed"
+      observed: 2026-09-04
+
+  nostalgia:
+    repo: bdf1992/nostalgia
+    status: active
+    line: instrument
+    claim: "An agent-assisted helper for getting classic games running and playable with others."
+    evidence:
+      command: "none — no test suite"
+      result: "not applicable"
+      observed: 2026-09-04
+
+  holon:
+    repo: bdf1992/holon
+    status: archived
+    line: reference
+    claim: "An archived notebook on whether one generative distinction could account for structure and form."
+    evidence:
+      command: "none — no test suite, no entry point"
+      result: "1358 markdown documents, 24 commits, last worked 2025-11-30"
+      observed: 2026-09-04
+
+  agentic:
+    repo: bdf1992/Agentic
+    status: archived
+    line: reference
+    claim: "Spawned and scheduled real Claude Code sessions from a dashboard, each configured for a role."
+    evidence:
+      command: "python -m pytest -q"
+      result: "not runnable here — 2 collection errors, missing service dependencies"
+      observed: 2026-09-04
+
+  langworld:
+    repo: bdf1992/LangWorld
+    status: reference
+    line: reference
+    claim: "An unmodified copy of LangChain's react-agent template. None of the code is the owner's."
+    evidence:
+      command: "git log --oneline"
+      result: "1 commit, LICENSE is MIT (c) 2024 LangChain"
+      observed: 2026-09-04
+
+  baseless:
+    repo: bdf1992/baseless
+    status: empty
+    line: reference
+    claim: "An empty repository. The name is reserved and nothing has been committed to it."
+    evidence:
+      command: "git log --oneline"
+      result: "no history until a README stating it is empty was added 2026-09-04"
+      observed: 2026-09-04
+
+edges:
+  - from: schematically
+    to: soveraeign
+    type: implements-format-of
+    evidence: >-
+      schematically's document format is namespaced under Soveraeign:
+      DATA-FORMATS.md:5 defines .sov as soveraeign.schematic/document@0.1,
+      DATA-FORMATS.md:18 gives the MIME type
+      application/vnd.soveraeign.schematic+json, and API.md:34 returns a
+      soveraeign.schematic/package@0.1 payload. index.html titles itself
+      "Soveraeign Schematic Lab 0.1 Beta.24".
+
+  - from: schematically
+    to: canvas
+    type: supersedes
+    evidence: >-
+      Stated by the owner, 2026-09-04. No textual link exists between the two
+      repositories, and their vocabularies are disjoint: Canvas uses Board,
+      Frame, Card and Grounded Field; schematically uses Component, Wire,
+      Part and signal. What corroborates the claim is overlapping purpose —
+      both arrange things in space and wire them together — and relative
+      activity: schematically has 59 commits and is current, Canvas has 20.
+      schematically's CANVAS-MODEL.md is not evidence; it uses "canvas" as a
+      model property and names none of Canvas's terms.
+
+  - from: ontum
+    to: onton
+    type: supersedes
+    evidence: >-
+      ontum's glossary records the rename. glyphs/knolling.md:142 lists
+      "Onton | DEAD | Former unit-name", and docs/sources/rosetta-creole.md:15
+      says the source "was written with the dead unit-name Onton, renamed
+      Onton -> Ontum". Recorded with a caveat: this is a rename of a
+      unit-name inside ontum's own vocabulary, sitting beside etymontoken and
+      epistemontoken. Neither repository states that one superseded the other.
+
+  - from: soveraeign
+    to: canvas
+    type: may-provide-substrate
+    evidence: >-
+      Canvas/README.md:5 says integrations such as Soveraeign "may provide
+      stronger grounding, execution, custody, provenance, authority, and
+      evidence, but they are providers of those semantics rather than
+      prerequisites for Canvas itself". The dependency is optional and Canvas
+      is built to work without it: TASK-2.md:38 records "no Soveraeign
+      dependency" and WITNESS.md:3 proves the contract without it.
+
+  - from: familiar
+    to: soveraeign
+    type: adapts
+    evidence: >-
+      familiar's skilltree kernel accepts Soveraeign skills as one artifact
+      type. cast/tests/test_skilltree_kernel.py:49 uses the adapter
+      "soveraeign-skill/v1", and line 63 lists it alongside agent-skill/v1,
+      spell/v0.2 and opaque/v1.
+
+  - from: familiar
+    to: owl
+    type: uses
+    evidence: >-
+      Owl is an agent role inside familiar's casting protocol.
+      cast/examples/find-familiar/SPELL.md:31 says "The Owl Agent may conduct
+      the cast using owl.system as its Familiar", and bounds it: Owl cannot
+      accept the Whole for the subject, grant authority, or waive
+      Requirements. The relation is one-way; Owl does not mention familiar.
+
+  - from: s4
+    to: onton
+    type: sibling-phase
+    evidence: >-
+      Both define the term "Software 4.0" independently, on the same
+      1.0/2.0/3.0 ladder, and reach different answers. onton/README.md:15
+      says 4.0 is "software that types its own delivery layer". S4's
+      CLAUDE.md:59 says 4.0 is a "coupled system ... not a fourth model
+      class; a coupling of the three under shared discipline". Recorded with
+      a caveat: neither repository references the other anywhere, so this is
+      parallel work on one question rather than a cited relation.
+
+# Edges tested and not recorded, because no evidence was found in either
+# direction: holon -> ontum, holon -> soveraeign, soveraeign -> ontum,
+# familiar -> howdo, agentic -> soveraeign, and the "instruments" relations
+# claimed for ddd-ccc, context, evident and system-cartographer. Each of
+# those four references zero sibling repositories, and no repository
+# references them.
+#
+# small-world names Catalyst Core (README.md:3, package.json:5) but never
+# names Diedle, so no edge between them is recorded here.
