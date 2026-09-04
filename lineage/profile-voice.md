@@ -20,16 +20,20 @@ into work a model does alone: the log is the truth and every other view is folde
 out of it. Before it was {onton}, archived now, which recorded how a thing was
 made so whoever got it next could tell.
 
-{schematically} treats a schematic as a real model of components, parts and
-wires, not a picture of one, and writes it in Soveraeign's format. It replaced
-{canvas}. {ide} is small on purpose: an editor that opens in a chat panel.
+A drawing of a schematic is a picture of one. {schematically} keeps the model
+underneath instead, with real components, parts and wires, written in
+Soveraeign's format. It replaced {canvas}, and {ide} is a small editor that
+opens in a chat panel.
 
-A lot of the rest is harness work. Not the models, the rules around them.
-{familiar} holds agent guidance a practitioner has to accept before it binds.
+A lot of the rest is harness work: the skills, roles and rules a model runs
+under. {familiar} holds agent guidance a practitioner has to accept before it
+binds.
 {owl} takes a rough ask, builds the whole clumsy thing early, then redraws that
 same thing from feedback instead of quietly starting a different project.
-{howdo} is what both of those assume. {context} is one file you drop into a
-directory to give an agent a bounded world. {system-cartographer} runs the other
+{howdo} is what both of those assume.
+
+{context} is one file you drop into a directory to give an agent a bounded
+world. {system-cartographer} runs the other
 way, from a working agent system back to the description nobody ever wrote.
 {ddd-ccc} asks what your tests actually cover, meaning-wise, and says where the
 holes are.
