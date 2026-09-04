@@ -27,15 +27,22 @@ def scalar(raw: str) -> str:
     truthy, and an empty evidence field passes the emptiness checks below.
     """
     value = raw.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        value = value[1:-1]
+    if value and value[0] in "\"'":
+        quote = value[0]
+        end = value.find(quote, 1)
+        if end != -1:
+            return value[1:end]
+        return value[1:]
+    # An unquoted scalar may carry a trailing comment; the value stops there.
+    if "#" in value:
+        value = value.split("#", 1)[0]
     return value.strip()
 FIELD_RE = re.compile(r"^    ([a-z_]+):\s*(.*)$")
 EVIDENCE_FIELD_RE = re.compile(r"^      ([a-z_]+):\s*(.*)$")
 EDGE_START_RE = re.compile(r"^  - from:\s*(\S+)$")
 EDGE_FIELD_RE = re.compile(r"^    ([a-z_]+):\s*(.*)$")
 
-REQUIRED_NODE_FIELDS = ("repo", "status", "line", "claim")
+REQUIRED_NODE_FIELDS = ("repo", "status", "line", "claim", "topics")
 REQUIRED_EVIDENCE_FIELDS = ("command", "result", "observed")
 REQUIRED_EDGE_FIELDS = ("to", "type", "evidence")
 
@@ -115,6 +122,16 @@ def main() -> int:
         repo = node.get("repo", "")
         if repo and not re.fullmatch(r"[\w.-]+/[\w.-]+", repo):
             failures.append(f"node {name}: repo {repo!r} is not owner/name")
+
+        # GitHub's own limits on the fields this file projects into.
+        claim = node.get("claim", "")
+        if len(claim) > 350:
+            failures.append(f"node {name}: claim is {len(claim)} chars, over GitHub's 350")
+        for topic in node.get("topics", "").split():
+            if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,49}", topic):
+                failures.append(f"node {name}: topic {topic!r} is not a legal GitHub topic")
+        if len(node.get("topics", "").split()) > 20:
+            failures.append(f"node {name}: more than 20 topics")
 
     touched = set()
     for index, edge in enumerate(edges):

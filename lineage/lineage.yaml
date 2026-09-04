@@ -20,6 +20,7 @@ nodes:
     status: active
     line: substrate
     claim: "People and AI models work through the same records, permissions and history."
+    topics: "local-first ai-native provenance audit-log permissions records python"
     evidence:
       command: "python scripts/verify.py"
       result: "50 checks, exit 0"
@@ -30,6 +31,7 @@ nodes:
     status: active
     line: substrate
     claim: "A governed gateway for autonomous AI work, where the append-only log is the truth and every other view is folded from it."
+    topics: "ai-native append-only-log agent-governance autonomous-agents provenance python"
     evidence:
       command: "python -m unittest discover -s tests"
       result: "1612 tests, 2 skipped, OK"
@@ -38,8 +40,10 @@ nodes:
   onton:
     repo: bdf1992/onton
     status: archived
+    github_archived: true   # read-only on GitHub; rejects pushes and metadata edits
     line: substrate
     claim: "Types how a generated artifact was formed, so trust carries across human, machine and composed work."
+    topics: "provenance type-system ai-native artifact-provenance receipts python"
     evidence:
       command: "python -m pytest -q"
       result: "1915 passed, 5 skipped"
@@ -54,6 +58,7 @@ nodes:
     status: active
     line: surface
     claim: "A schematic editor whose document is a semantic model of components, parts and wires rather than a drawing."
+    topics: "schematic-editor semantic-model svg mcp ai-native browser javascript"
     evidence:
       command: "python scripts/qa.py"
       result: "exit 0, 37 suites + 17 JS syntax checks, 14 mutants killed 0 survived"
@@ -64,6 +69,7 @@ nodes:
     status: superseded
     line: surface
     claim: "Arranges addressable things in space, relates them visibly, and wires a subset into executable circuits."
+    topics: "spatial-composition canvas wiring addressable-objects python"
     evidence:
       command: "python -m pytest -q"
       result: "30 passed"
@@ -74,6 +80,7 @@ nodes:
     status: active
     line: instrument
     claim: "A local-first workbench for agent guidance that a practitioner has to accept before it binds."
+    topics: "agent-guidance local-first workbench portable-agents python"
     evidence:
       command: "python -m pytest -q"
       result: "463 passed, 86 subtests passed"
@@ -84,6 +91,7 @@ nodes:
     status: active
     line: method
     claim: "Turns a rough ask into a complete inspectable attempt early, then redraws it from feedback."
+    topics: "methodology prototyping claude-code skill iteration"
     evidence:
       command: "cd draw-the-owl && python -m pytest -q"
       result: "38 passed, 12 subtests passed"
@@ -94,6 +102,7 @@ nodes:
     status: active
     line: method
     claim: "A discipline for understanding a problem before acting on it."
+    topics: "methodology discipline understanding-before-acting python"
     evidence:
       command: "python -m pytest -q"
       result: "591 passed, 273 subtests passed"
@@ -104,6 +113,7 @@ nodes:
     status: experiment
     line: method
     claim: "Tests whether the two-axis split between programs and protocols survives being handed to a fresh agent."
+    topics: "protocol experiment agent-harness claude-code subprotocol"
     evidence:
       command: "PYTHONPATH=. python boards/collectors/test_factory_install_drift.py"
       result: "exit 0, factory install_drift 5/5 cases pass"
@@ -114,6 +124,7 @@ nodes:
     status: active
     line: instrument
     claim: "Measures how much of a repository's meaning is actually covered by its tests, and names the gaps."
+    topics: "test-coverage semantic-coverage mutation-testing static-analysis python"
     evidence:
       command: "python -m s3.cubes.run_proofs"
       result: "4 green, 0 fail, acceptance met"
@@ -124,6 +135,7 @@ nodes:
     status: active
     line: instrument
     claim: "A single-file harness that installs into any directory and gives an agent a bounded world to work in."
+    topics: "llm-agents context-management single-file harness bootstrap"
     evidence:
       command: "none — no test suite, by design"
       result: "not applicable"
@@ -134,6 +146,7 @@ nodes:
     status: active
     line: instrument
     claim: "A session-based instrument for bootstrapping how an organization works, in about thirty minutes."
+    topics: "organizational-design bootstrap ai-native session-based"
     evidence:
       command: "python -m pytest -q"
       result: "1 passed"
@@ -144,6 +157,7 @@ nodes:
     status: active
     line: instrument
     claim: "Reverse-engineers an undocumented agent or AI-native system into a description complete enough to rebuild it."
+    topics: "claude-code skill reverse-engineering documentation ai-native lineage"
     evidence:
       command: "none — no test suite, by design"
       result: "not applicable"
@@ -154,6 +168,7 @@ nodes:
     status: active
     line: world
     claim: "A bounded lab for generative-world architecture, built for Catalyst Core."
+    topics: "generative-worlds architecture catalyst-core javascript simulation"
     evidence:
       command: "npm test"
       result: "9 suites, exit 0"
@@ -164,6 +179,7 @@ nodes:
     status: active
     line: surface
     claim: "A small in-chat editor that opens in a side panel and reuses proven browser components."
+    topics: "editor chatgpt browser side-panel javascript"
     evidence:
       command: "cd poc/neural-elaboration && python -m pytest -q"
       result: "17 passed"
@@ -174,6 +190,7 @@ nodes:
     status: active
     line: instrument
     claim: "An agent-assisted helper for getting classic games running and playable with others."
+    topics: "retro-gaming emulation multiplayer compatibility agent-assisted"
     evidence:
       command: "none — no test suite"
       result: "not applicable"
@@ -184,6 +201,7 @@ nodes:
     status: archived
     line: reference
     claim: "An archived notebook on whether one generative distinction could account for structure and form."
+    topics: "research archive notes formal-systems"
     evidence:
       command: "none — no test suite, no entry point"
       result: "1358 markdown documents, 24 commits, last worked 2025-11-30"
@@ -192,8 +210,10 @@ nodes:
   agentic:
     repo: bdf1992/Agentic
     status: archived
+    github_archived: true   # read-only on GitHub; rejects pushes and metadata edits
     line: reference
     claim: "Spawned and scheduled real Claude Code sessions from a dashboard, each configured for a role."
+    topics: "multi-agent claude-code dashboard orchestration archive"
     evidence:
       command: "python -m pytest -q"
       result: "not runnable here — 2 collection errors, missing service dependencies"
@@ -204,6 +224,7 @@ nodes:
     status: reference
     line: reference
     claim: "An unmodified copy of LangChain's react-agent template. None of the code is the owner's."
+    topics: "template langgraph third-party-copy reference"
     evidence:
       command: "git log --oneline"
       result: "1 commit, LICENSE is MIT (c) 2024 LangChain"
@@ -214,6 +235,7 @@ nodes:
     status: empty
     line: reference
     claim: "An empty repository. The name is reserved and nothing has been committed to it."
+    topics: "placeholder"
     evidence:
       command: "git log --oneline"
       result: "no history until a README stating it is empty was added 2026-09-04"
