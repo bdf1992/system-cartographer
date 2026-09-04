@@ -184,6 +184,26 @@ def selfcheck(nodes: dict, edges: list) -> int:
                                          near.group(0)):
                 failures.append(f"{name} is linked without being called what it is")
 
+    # A number the record did not supply cannot be verified by running anything,
+    # so the sentence carrying it has to say so. Otherwise an unverifiable figure
+    # sits beside checkable ones and borrows their standing.
+    source = "\n".join(
+        line for line in VOICE.read_text(encoding="utf-8").splitlines()
+        if not line.startswith("<!--") and not line.startswith("     ")
+    )
+    bare = re.sub(r"\{[^}]*\}", "", source)
+    for sentence in re.split(r"(?<=\.)\s", bare):
+        if re.search(r"\d", sentence) and not re.search(
+                r"can'?t check|cannot check|behind a company", sentence, re.I):
+            around = " ".join(bare.split("\n"))
+            index = around.find(sentence.strip().split("\n")[0][:40])
+            window = around[max(0, index - 200):index + 400]
+            if not re.search(r"can'?t check|cannot check|behind a company",
+                             window, re.I):
+                failures.append(
+                    f"a hand-typed number is stated without saying it cannot be "
+                    f"checked: {sentence.strip()[:70]!r}")
+
     for line in failures:
         print(f"FAIL  {line}")
     if failures:
