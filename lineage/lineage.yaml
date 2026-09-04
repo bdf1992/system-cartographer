@@ -19,6 +19,7 @@ nodes:
     repo: bdf1992/Soveraeign
     status: active
     line: substrate
+    featured: true   # the thesis the other work tests, and the largest active surface
     claim: "People and AI models work through the same records, permissions and history."
     topics: "local-first ai-native provenance audit-log permissions records python"
     evidence:
@@ -30,6 +31,7 @@ nodes:
     repo: bdf1992/ontum
     status: active
     line: substrate
+    featured: true   # the largest suite on the account at 1612 tests
     claim: "A governed gateway for autonomous AI work, where the append-only log is the truth and every other view is folded from it."
     topics: "ai-native append-only-log agent-governance autonomous-agents provenance python"
     evidence:
@@ -57,6 +59,7 @@ nodes:
     repo: bdf1992/schematically
     status: active
     line: surface
+    featured: true   # the most current work, and the only one graded by mutation testing
     claim: "A schematic editor whose document is a semantic model of components, parts and wires rather than a drawing."
     topics: "schematic-editor semantic-model svg mcp ai-native browser javascript"
     evidence:
@@ -79,6 +82,7 @@ nodes:
     repo: bdf1992/familiar
     status: active
     line: instrument
+    featured: true   # a complete reference profile with 463 tests behind it
     claim: "A local-first workbench for agent guidance that a practitioner has to accept before it binds."
     topics: "agent-guidance local-first workbench portable-agents python"
     evidence:
@@ -101,6 +105,7 @@ nodes:
     repo: bdf1992/HowDo
     status: active
     line: method
+    featured: true   # the method most legible to a reader who is not going to read code
     claim: "A discipline for understanding a problem before acting on it."
     topics: "methodology discipline understanding-before-acting python"
     evidence:
@@ -167,6 +172,7 @@ nodes:
     repo: bdf1992/small-world
     status: active
     line: world
+    featured: true   # the Catalyst Core thread, which the owner asked to keep visible
     claim: "A bounded lab for generative-world architecture, built for Catalyst Core."
     topics: "generative-worlds architecture catalyst-core javascript simulation"
     evidence:

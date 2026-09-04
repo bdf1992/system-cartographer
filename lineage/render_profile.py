@@ -79,24 +79,70 @@ def rows(nodes: dict, line: str) -> list[str]:
     return out
 
 
+def featured(nodes: dict) -> list[str]:
+    """The repositories the first screen leads with, in canonical line order.
+
+    Which six lead is a judgement, not something derivable from the record: test
+    counts alone would drop the flagship for a repository with a larger suite.
+    So the choice is declared in lineage.yaml as `featured: true` with the reason
+    beside it, and this only projects it. Six because that is what GitHub pins,
+    so the page and the pinned row can say the same thing.
+
+    Nothing superseded, experimental, archived, third-party or empty is eligible.
+    They stay in the full inventory below, which is why its count still reads 20.
+    """
+    order = [key for key, _, _ in LINES]
+    picked = [n for n in nodes if nodes[n].get("featured") == "true"]
+    return sorted(picked, key=lambda n: order.index(nodes[n].get("line", order[-1])))
+
+
 def page(nodes: dict, edges: list) -> str:
     total, contributors = counted(nodes)
     unconnected = sorted(
         n for n in nodes if not any(n in (e["from"], e["to"]) for e in edges)
     )
+    observed_on = next(iter(nodes.values()))["evidence"]["observed"]
+
     lines = [
         "## Brandon Freeman",
         "",
-        "I build systems where a claim has to carry its evidence — records that keep "
-        "their own history, work that can be checked by someone who was not there, and "
-        "AI that operates inside the same rules as the people it works with.",
+        "I build systems where a claim has to carry its evidence: records that keep "
+        "their own history, work another person can check without having been there, "
+        "and AI that operates inside the same rules as the people it works with.",
         "",
-        f"{len(nodes)} public repositories. Every claim below names a command you can "
-        f"run and what it returned when it was run, on "
-        f"{[n for n in nodes.values()][0]['evidence']['observed']}. "
-        f"{total:,} individual tests pass across "
-        f"{len(contributors)} of them; the rest report suites, checks, proofs or cases, "
-        "which are real but not the same unit and are not added in.",
+        f"Everything below names a command you can run and what it returned when it "
+        f"was run on {observed_on}. Nothing here is a figure I did not observe.",
+        "",
+        "### Start here",
+        "",
+        "| | What it is | Checked |",
+        "| --- | --- | --- |",
+    ]
+    for name in featured(nodes):
+        node = nodes[name]
+        repo = node["repo"].split("/", 1)[1]
+        evidence = node["evidence"]
+        lines.append(
+            f"| **[{repo}](https://github.com/{node['repo']})** | {node['claim']} "
+            f"| `{evidence['command']}` → {evidence['result']} |"
+        )
+
+    lines += [
+        "",
+        f"Across all {len(nodes)} public repositories, {total:,} individual tests pass "
+        f"in {len(contributors)} of them. The others report suites, checks, proofs or "
+        "cases — real evidence in different units, so they are not added into that "
+        "number.",
+        "",
+        f"How they relate is recorded, with evidence, in "
+        f"[`lineage.yaml`]({LINEAGE_URL}): {len(edges)} relations, each pointing at the "
+        f"file and line where it is visible. So is the fact that {len(unconnected)} of "
+        f"the {len(nodes)} connect to nothing. That is the honest shape — two small "
+        "clusters and a lot of standalone work — and relations I tested and could not "
+        "evidence are written down as rejected rather than quietly dropped.",
+        "",
+        "<details>",
+        "<summary>The full inventory, by what each thing is for</summary>",
         "",
     ]
 
@@ -104,34 +150,30 @@ def page(nodes: dict, edges: list) -> str:
         body = rows(nodes, key)
         if not body:
             continue
-        lines += [f"### {title}", "", blurb, "",
+        lines += [f"#### {title}", "", blurb, "",
                   "| Repository | What it is | Checked |",
                   "| --- | --- | --- |"] + body + [""]
 
-    lines += ["### How they relate", "",
-              f"{len(edges)} relations, each one pointing at the file and line where it "
-              "is visible. They are recorded in the lineage with that evidence attached.",
-              ""]
+    lines += ["#### How they relate", ""]
+
     def shown(node_id: str) -> str:
         return nodes[node_id]["repo"].split("/", 1)[1]
 
     for edge in edges:
         phrase = RELATION_PHRASE.get(edge["type"], edge["type"].replace("-", " "))
         lines.append(f"- **{shown(edge['from'])}** {phrase} **{shown(edge['to'])}**")
-    lines += [""]
 
-    lines += ["### What does not connect", "",
-              f"{len(unconnected)} of the {len(nodes)} are unconnected: "
-              + ", ".join(f"`{n}`" for n in unconnected) + ".",
+    lines += ["",
+              "#### What does not connect",
               "",
-              "That is the honest shape — two small clusters and a lot of standalone "
-              "work. Relations that were tested and found unevidenced are written into "
-              "the lineage too, so the absence is legible rather than tidied away.",
-              ""]
-
-    lines += ["---", "",
-              f"This page is generated from [`lineage.yaml`]({LINEAGE_URL}), which is "
-              "checked by a validator that fails on a claim without evidence or an edge "
+              ", ".join(f"`{shown(n)}`" for n in unconnected) + ".",
+              "",
+              "</details>",
+              "",
+              "---",
+              "",
+              f"This page is generated from [`lineage.yaml`]({LINEAGE_URL}), which a "
+              "validator checks: it fails on a claim without evidence, or an edge "
               "pointing nowhere. Editing this page by hand would only be overwritten.",
               ""]
     return "\n".join(lines)
@@ -158,6 +200,18 @@ def selfcheck(nodes: dict, edges: list) -> int:
 
     if str(len(edges)) not in text:
         failures.append("the edge count is not stated")
+
+    picked = featured(nodes)
+    if len(picked) != 6:
+        failures.append(f"{len(picked)} repositories are featured; GitHub pins 6")
+    for name in picked:
+        node = nodes[name]
+        if node.get("status") != "active":
+            failures.append(f"featured {name} is {node.get('status')}, not active")
+        if node["evidence"]["command"].startswith("none"):
+            failures.append(f"featured {name} has no runnable check")
+        if node.get("github_archived") == "true":
+            failures.append(f"featured {name} is archived on GitHub")
 
     for line in failures:
         print(f"FAIL  {line}")
