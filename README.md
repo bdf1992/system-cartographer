@@ -46,7 +46,7 @@ Not yet declared.
 
 This is one of 20 repositories on this account whose relations are recorded, with the evidence for each, in [`lineage.yaml`](https://github.com/bdf1992/system-cartographer/blob/claude/access-requirements-zbl1s7/lineage/lineage.yaml). What that record says about this one:
 
-**Claim.** Reverse-engineers an undocumented agent or AI-native system into a description complete enough to rebuild it.
+**Claim.** A Claude Code skill that reverse-engineers an undocumented agent or AI-native system into a description complete enough to rebuild it.
 
 **Checked.** none — no test suite, by design (not applicable), observed 2026-09-04.
 

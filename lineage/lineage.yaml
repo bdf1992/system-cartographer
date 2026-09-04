@@ -90,7 +90,7 @@ nodes:
     repo: bdf1992/Owl
     status: active
     line: method
-    claim: "Turns a rough ask into a complete inspectable attempt early, then redraws it from feedback."
+    claim: "Turns a rough request or exploratory mark into a complete, inspectable result, then redraws that same target from feedback without drifting into another project."
     topics: "methodology prototyping claude-code skill iteration"
     evidence:
       command: "cd draw-the-owl && python -m pytest -q"
@@ -156,7 +156,7 @@ nodes:
     repo: bdf1992/system-cartographer
     status: active
     line: instrument
-    claim: "Reverse-engineers an undocumented agent or AI-native system into a description complete enough to rebuild it."
+    claim: "A Claude Code skill that reverse-engineers an undocumented agent or AI-native system into a description complete enough to rebuild it."
     topics: "claude-code skill reverse-engineering documentation ai-native lineage"
     evidence:
       command: "none — no test suite, by design"
