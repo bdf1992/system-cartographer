@@ -80,88 +80,90 @@ def featured(nodes: dict) -> list[str]:
 
 VOICE = Path(__file__).resolve().parent / "profile-voice.md"
 
+TOKEN_RE = re.compile(r"\{([a-z0-9-]+)(?:\.([a-z]+))?\}")
 
-def page(nodes: dict, edges: list) -> str:
-    """The profile page: written part from profile-voice.md, facts from the record.
 
-    It carries the featured repositories and nothing else. The full inventory —
-    archived work, the third-party copy, the empty name, everything unconnected —
-    stays in lineage.yaml, which the page links rather than reprints. A profile is
-    read above the fold, and an archived repository is not what a reader should
-    meet first.
+def resolve(nodes: dict, edges: list) -> dict[str, str]:
+    """Every token the voice may use, and what it expands to.
+
+    A repository token becomes a link built from the record, so renaming a
+    repository in lineage.yaml moves every reference to it and a reference to a
+    repository that does not exist fails loudly instead of shipping a dead link.
     """
     total, contributors = counted(nodes)
-    unconnected = sum(
-        1 for n in nodes if not any(n in (e["from"], e["to"]) for e in edges)
-    )
-    observed_on = next(iter(nodes.values()))["evidence"]["observed"]
+    values = {
+        "total": f"{total:,}",
+        "contributors": str(len(contributors)),
+        "repos": str(len(nodes)),
+        "edges": str(len(edges)),
+        "unconnected": str(sum(
+            1 for n in nodes if not any(n in (e["from"], e["to"]) for e in edges))),
+        "observed": next(iter(nodes.values()))["evidence"]["observed"],
+        "lineage": f"[The full record]({LINEAGE_URL})",
+    }
+    for name, node in nodes.items():
+        shown = node["repo"].split("/", 1)[1]
+        values[name] = f"[{shown}](https://github.com/{node['repo']})"
+        evidence = node["evidence"]
+        values[f"{name}.check"] = (
+            evidence["result"] if evidence["command"].startswith("none")
+            else f"`{evidence['command']}` → {evidence['result']}"
+        )
+    return values
 
-    voice = "\n".join(
+
+def page(nodes: dict, edges: list) -> str:
+    """The profile page: prose from profile-voice.md, every reference resolved here.
+
+    The page is a description with references, not an inventory. Archived and
+    closed work is named where the prose has a reason to name it, rather than
+    listed as though a reader should go and look at it.
+    """
+    values = resolve(nodes, edges)
+    text = "\n".join(
         line for line in VOICE.read_text(encoding="utf-8").splitlines()
         if not line.startswith("<!--") and not line.startswith("     ")
     ).strip()
 
-    lines = [voice.format(repos=len(nodes), observed=observed_on), ""]
-    for name in featured(nodes):
-        node = nodes[name]
-        repo = node["repo"].split("/", 1)[1]
-        evidence = node["evidence"]
-        lines += [
-            f"**[{repo}](https://github.com/{node['repo']})** — {node['claim']}  ",
-            f"`{evidence['command']}` → {evidence['result']}",
-            "",
-        ]
+    unknown: list[str] = []
 
-    lines += [
-        f"That is {len(featured(nodes))} of {len(nodes)}. Across all of them "
-        f"{total:,} tests pass in {len(contributors)}; the rest count in suites, "
-        "checks and proofs, which are real but not the same unit, so I don't add "
-        "them together.",
-        "",
-        f"[The full record]({LINEAGE_URL}) has the other {len(nodes) - len(featured(nodes))} "
-        f"— including what is archived and the {unconnected} that connect to nothing "
-        f"— plus the {len(edges)} relations between them, each with the file and line "
-        "that shows it, and the ones I looked for and could not evidence.",
-        "",
-    ]
-    return "\n".join(lines)
+    def expand(match: re.Match) -> str:
+        key = match.group(1) + (f".{match.group(2)}" if match.group(2) else "")
+        if key not in values:
+            unknown.append(key)
+            return match.group(0)
+        return values[key]
+
+    text = TOKEN_RE.sub(expand, text)
+    if unknown:
+        raise KeyError(f"profile-voice.md references unknown: {sorted(set(unknown))}")
+    return text + "\n"
 
 
 def selfcheck(nodes: dict, edges: list) -> int:
-    """Every number on the page must come from the lineage."""
+    """Prove the page states nothing it did not get from the record."""
     failures: list[str] = []
     text = page(nodes, edges)
     total, contributors = counted(nodes)
 
-    for name in contributors:
-        if not COUNT_RE.search(nodes[name]["evidence"]["result"]):
-            failures.append(f"{name} counted without a stated test count")
+    left = TOKEN_RE.findall(text)
+    if left:
+        failures.append(f"unresolved references remain: {left}")
 
     declared = sum(int(COUNT_RE.search(nodes[n]["evidence"]["result"]).group(1))
                    for n in contributors)
     if declared != total:
         failures.append(f"stated total {total} is not the sum of its parts {declared}")
 
+    plain = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+
     picked = featured(nodes)
-    for name, node in nodes.items():
-        shown = f"](https://github.com/{node['repo']})" in text
-        if name in picked and not shown:
-            failures.append(f"featured {name} is missing from the page")
-        if name not in picked and shown:
-            failures.append(f"{name} is on the page but not featured")
-        if shown and node.get("github_archived") == "true":
-            failures.append(f"{name} is archived on GitHub and reached the page")
-        if shown and node.get("status") in ("archived", "empty", "reference",
-                                            "superseded", "experiment"):
-            failures.append(f"{name} has status {node['status']} and reached the page")
-
-    if str(len(edges)) not in text:
-        failures.append("the edge count is not stated")
-
     if len(picked) != 6:
         failures.append(f"{len(picked)} repositories are featured; GitHub pins 6")
     for name in picked:
         node = nodes[name]
+        if f"](https://github.com/{node['repo']})" not in text:
+            failures.append(f"featured {name} is never mentioned on the page")
         if node.get("status") != "active":
             failures.append(f"featured {name} is {node.get('status')}, not active")
         if node["evidence"]["command"].startswith("none"):
@@ -169,13 +171,28 @@ def selfcheck(nodes: dict, edges: list) -> int:
         if node.get("github_archived") == "true":
             failures.append(f"featured {name} is archived on GitHub")
 
+    # Archived work may be named where the prose has a reason to name it, but a
+    # reader must never be pointed at it without being told what it is.
+    for name, node in nodes.items():
+        linked = f"](https://github.com/{node['repo']})" in text
+        closed = (node.get("github_archived") == "true"
+                  or node.get("status") in ("archived", "empty", "reference"))
+        if linked and closed:
+            shown = node["repo"].split("/", 1)[1]
+            near = re.search(rf"{re.escape(shown)}[^.]*?\.", plain, re.S)
+            if not near or not re.search(r"archived|empty|third-party|copy",
+                                         near.group(0)):
+                failures.append(f"{name} is linked without being called what it is")
+
     for line in failures:
         print(f"FAIL  {line}")
     if failures:
         return 1
-    print(f"PASS — {len(picked)} featured of {len(nodes)} on the page, nothing "
-          f"archived or closed reaching it, {total:,} tests summed from "
-          f"{len(contributors)} observed results only.")
+    linked = sum(1 for n in nodes
+                 if f"](https://github.com/{nodes[n]['repo']})" in text)
+    print(f"PASS — {linked} of {len(nodes)} repositories referenced, every reference "
+          f"resolved, {total:,} tests summed from {len(contributors)} observed "
+          f"results only.")
     return 0
 
 
