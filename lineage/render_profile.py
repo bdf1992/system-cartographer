@@ -96,53 +96,50 @@ def featured(nodes: dict) -> list[str]:
     return sorted(picked, key=lambda n: order.index(nodes[n].get("line", order[-1])))
 
 
+VOICE = Path(__file__).resolve().parent / "profile-voice.md"
+
+
 def page(nodes: dict, edges: list) -> str:
+    """The profile page: the written part from profile-voice.md, facts from here.
+
+    Kept short on purpose. A profile README is read above the fold or not at all,
+    so the page leads with six repositories and folds the rest away.
+    """
     total, contributors = counted(nodes)
     unconnected = sorted(
         n for n in nodes if not any(n in (e["from"], e["to"]) for e in edges)
     )
     observed_on = next(iter(nodes.values()))["evidence"]["observed"]
 
-    lines = [
-        "## Brandon Freeman",
-        "",
-        "I build systems where a claim has to carry its evidence: records that keep "
-        "their own history, work another person can check without having been there, "
-        "and AI that operates inside the same rules as the people it works with.",
-        "",
-        f"Everything below names a command you can run and what it returned when it "
-        f"was run on {observed_on}. Nothing here is a figure I did not observe.",
-        "",
-        "### Start here",
-        "",
-        "| | What it is | Checked |",
-        "| --- | --- | --- |",
-    ]
+    voice = "\n".join(
+        line for line in VOICE.read_text(encoding="utf-8").splitlines()
+        if not line.startswith("<!--") and not line.startswith("     ")
+    ).strip()
+    voice = voice.format(repos=len(nodes), observed=observed_on)
+
+    lines = [voice, ""]
     for name in featured(nodes):
         node = nodes[name]
         repo = node["repo"].split("/", 1)[1]
         evidence = node["evidence"]
-        lines.append(
-            f"| **[{repo}](https://github.com/{node['repo']})** | {node['claim']} "
-            f"| `{evidence['command']}` → {evidence['result']} |"
-        )
+        lines += [
+            f"**[{repo}](https://github.com/{node['repo']})** — {node['claim']}  ",
+            f"`{evidence['command']}` → {evidence['result']}",
+            "",
+        ]
 
     lines += [
+        f"{total:,} tests pass across {len(contributors)} of the {len(nodes)}; "
+        "the rest count in "
+        "suites, checks and proofs, which are real but not the same unit, so I don't "
+        "add them together.",
         "",
-        f"Across all {len(nodes)} public repositories, {total:,} individual tests pass "
-        f"in {len(contributors)} of them. The others report suites, checks, proofs or "
-        "cases — real evidence in different units, so they are not added into that "
-        "number.",
-        "",
-        f"How they relate is recorded, with evidence, in "
-        f"[`lineage.yaml`]({LINEAGE_URL}): {len(edges)} relations, each pointing at the "
-        f"file and line where it is visible. So is the fact that {len(unconnected)} of "
-        f"the {len(nodes)} connect to nothing. That is the honest shape — two small "
-        "clusters and a lot of standalone work — and relations I tested and could not "
-        "evidence are written down as rejected rather than quietly dropped.",
+        f"[How they relate]({LINEAGE_URL}) is written down with the file and line that "
+        f"shows each one — {len(edges)} relations, and the {len(unconnected)} that "
+        "connect to nothing at all. I'd rather show the real shape than a tidy one.",
         "",
         "<details>",
-        "<summary>The full inventory, by what each thing is for</summary>",
+        "<summary>Everything else</summary>",
         "",
     ]
 
@@ -150,32 +147,10 @@ def page(nodes: dict, edges: list) -> str:
         body = rows(nodes, key)
         if not body:
             continue
-        lines += [f"#### {title}", "", blurb, "",
-                  "| Repository | What it is | Checked |",
-                  "| --- | --- | --- |"] + body + [""]
+        lines += [f"**{title}** — {blurb}", "",
+                  "| | | |", "| --- | --- | --- |"] + body + [""]
 
-    lines += ["#### How they relate", ""]
-
-    def shown(node_id: str) -> str:
-        return nodes[node_id]["repo"].split("/", 1)[1]
-
-    for edge in edges:
-        phrase = RELATION_PHRASE.get(edge["type"], edge["type"].replace("-", " "))
-        lines.append(f"- **{shown(edge['from'])}** {phrase} **{shown(edge['to'])}**")
-
-    lines += ["",
-              "#### What does not connect",
-              "",
-              ", ".join(f"`{shown(n)}`" for n in unconnected) + ".",
-              "",
-              "</details>",
-              "",
-              "---",
-              "",
-              f"This page is generated from [`lineage.yaml`]({LINEAGE_URL}), which a "
-              "validator checks: it fails on a claim without evidence, or an edge "
-              "pointing nowhere. Editing this page by hand would only be overwritten.",
-              ""]
+    lines += ["</details>", ""]
     return "\n".join(lines)
 
 
