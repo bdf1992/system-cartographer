@@ -1,0 +1,179 @@
+{
+  "observed": "2026-09-05",
+  "repositories": [
+    {
+      "repo": "bdf1992/LangWorld",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/field",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/holon",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/digitaldimensions",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/baseless",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/Diedle",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/Slime-Simulation",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/Clouds",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/Fluid-Sim",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/StableIndexVector",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/AntSimulator",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/Drew-s-Campfire-Videos",
+      "visibility": "public",
+      "archived": false,
+      "fork": true
+    },
+    {
+      "repo": "bdf1992/Agentic",
+      "visibility": "public",
+      "archived": true,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/DDD-CCC",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/context",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/S4",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/onton",
+      "visibility": "public",
+      "archived": true,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/ontum",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/system-cartographer",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/Owl",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/familiar",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/evident",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/HowDo",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/Soveraeign",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/Canvas",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/small-world",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/ide",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/nostalgia",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    },
+    {
+      "repo": "bdf1992/schematically",
+      "visibility": "public",
+      "archived": false,
+      "fork": false
+    }
+  ]
+}

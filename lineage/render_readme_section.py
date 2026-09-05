@@ -37,58 +37,20 @@ LINEAGE_URL = (
     f"https://github.com/bdf1992/system-cartographer/blob/{REF}/lineage/lineage.yaml"
 )
 
-FOLD_RE = re.compile(r"^(\s+)(evidence|note):\s*>-\s*$")
-
 RELATION_PHRASE = {
     "implements-format-of": "implements the document format of",
     "supersedes": "supersedes",
     "may-provide-substrate": "may provide substrate to",
     "adapts": "adapts",
     "uses": "uses",
+    "references": "references",
     "sibling-phase": "is parallel work with",
 }
 
 
-def folded_blocks(text: str) -> list[str]:
-    """Every folded (`>-`) scalar's text, in file order.
-
-    validate.parse records such a field as the literal ">-" because its line
-    regexes stop at the marker. The evidence sentence is the point of an edge,
-    so it is read here rather than by loosening the validator, whose corruption
-    fixtures depend on its current shape.
-    """
-    blocks: list[str] = []
-    lines = text.splitlines()
-    index = 0
-    while index < len(lines):
-        match = FOLD_RE.match(lines[index])
-        if not match:
-            index += 1
-            continue
-        indent = len(match.group(1))
-        index += 1
-        collected: list[str] = []
-        while index < len(lines):
-            line = lines[index]
-            if line.strip() and (len(line) - len(line.lstrip())) <= indent:
-                break
-            collected.append(line.strip())
-            index += 1
-        blocks.append(" ".join(p for p in collected if p))
-    return blocks
-
-
 def with_folded(text: str):
-    """(nodes, edges) with folded evidence and note text filled in."""
-    nodes, edges = parse(text)
-    blocks = iter(folded_blocks(text))
-    for name in nodes:
-        if nodes[name].get("note") == ">-":
-            nodes[name]["note"] = next(blocks, "")
-    for edge in edges:
-        if edge.get("evidence") == ">-":
-            edge["evidence"] = next(blocks, "")
-    return nodes, edges
+    """Compatibility name: the shared YAML parser now handles folded scalars."""
+    return parse(text)
 
 
 def relations(name: str, nodes: dict, edges: list) -> list[str]:
@@ -97,11 +59,13 @@ def relations(name: str, nodes: dict, edges: list) -> list[str]:
     for edge in edges:
         if name not in (edge["from"], edge["to"]):
             continue
+        if edge['state'] == 'unsupported':
+            continue
         phrase = RELATION_PHRASE.get(edge["type"], edge["type"].replace("-", " "))
         other = edge["to"] if edge["from"] == name else edge["from"]
         subject = "This repository" if edge["from"] == name else f"`{other}`"
         object_ = f"`{other}`" if edge["from"] == name else "this repository"
-        out.append(f"- {subject} **{phrase}** {object_}. {edge['evidence']}")
+        out.append(f"- [{edge['state']}] {subject} **{phrase}** {object_}. {edge['evidence']} {edge['limit']}")
     return out
 
 
@@ -111,7 +75,7 @@ def block(name: str, nodes: dict, edges: list) -> str:
     evidence = node["evidence"]
     unconnected = sum(
         1 for other in nodes
-        if not any(other in (e["from"], e["to"]) for e in edges)
+        if not relations(other, nodes, edges)
     )
 
     lines = [BEGIN, "", "## Where this sits", "", (
@@ -123,11 +87,13 @@ def block(name: str, nodes: dict, edges: list) -> str:
     lines += [f"**Claim.** {node['claim']}", ""]
 
     if evidence["command"].startswith("none"):
-        lines += [f"**Checked.** {evidence['command']} ({evidence['result']}), "
+        lines += [f"**Source inspection.** {evidence['command']} ({evidence['result']}), "
                   f"observed {evidence['observed']}.", ""]
     else:
-        lines += [f"**Checked.** `{evidence['command']}` — {evidence['result']}, "
+        lines += [f"**Source inspection.** `{evidence['command']}` — {evidence['result']}, "
                   f"observed {evidence['observed']}.", ""]
+
+    lines += ["Run this source check from the system-cartographer checkout. It checks a pinned source file; it does not certify the runtime or repeat a test suite.", ""]
 
     found = relations(name, nodes, edges)
     if found:

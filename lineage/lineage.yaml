@@ -1,336 +1,816 @@
-# The relations between bdf1992's public repositories, with the evidence for each.
-#
-# Rules this file is kept under:
-#   - Every node carries one plain claim and a command someone else can run.
-#   - Every recorded result was observed by running the command, not copied
-#     from a prior report.
-#   - Every edge names where the relation is visible in the repositories. An
-#     edge that cannot be evidenced is not recorded.
-#   - Private repositories are out of scope.
-#
-# Observed 2026-09-04. Forks are excluded: eight of the nine contain none of
-# the owner's commits.
-
 schema: lineage/v1
-observed: 2026-09-04
-
+observed: '2026-09-05'
 nodes:
   soveraeign:
     repo: bdf1992/Soveraeign
     status: active
     line: substrate
-    featured: true   # the thesis the other work tests, and the largest active surface
-    claim: "People and AI models work through the same records, permissions and history."
-    topics: "local-first ai-native provenance audit-log permissions records python"
+    featured: true
+    claim: People and AI models work through the same records, permissions and history.
+    topics: local-first ai-native provenance audit-log permissions records python
     evidence:
-      command: "python scripts/verify.py"
-      result: "50 checks, exit 0"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node soveraeign
+      result: Pinned source blob 4cc02d88b10fcac2e9f9a150aa019c2d23979965; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 4b0bc1d7e3a92f2671d86bc6467f57f2dd62d51b
+      path: README.md
+      blob: 4cc02d88b10fcac2e9f9a150aa019c2d23979965
+      sha256: a423b77709314e80680e5109c11a3a4bee424dc886c23cd44106d6e0477373a7
+    reported_evidence:
+      command: python scripts/verify.py
+      result: 50 checks, exit 0
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: A documented citation or optional-provider relation is recorded; no working runtime
+      dependency is inferred.
   ontum:
     repo: bdf1992/ontum
     status: active
     line: substrate
-    featured: true   # the largest suite on the account at 1612 tests
-    claim: "A governed gateway for autonomous AI work, where the append-only log is the truth and every other view is folded from it."
-    topics: "ai-native append-only-log agent-governance autonomous-agents provenance python"
+    featured: true
+    claim: A governed gateway for autonomous AI work, where the append-only log is the truth and every
+      other view is folded from it.
+    topics: ai-native append-only-log agent-governance autonomous-agents provenance python
     evidence:
-      command: "python -m unittest discover -s tests"
-      result: "1612 tests, 2 skipped, OK"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node ontum
+      result: Pinned source blob aef1c9636995b81518431701c1439eac14b742c7; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 43b8ac3839214e24f3667ce99443dbc537b5e5c0
+      path: README.md
+      blob: aef1c9636995b81518431701c1439eac14b742c7
+      sha256: 37322cfed2588a11f60b8f47bc65053822f520f1e03e622741025324cd233b52
+    reported_evidence:
+      command: python -m unittest discover -s tests
+      result: 1612 tests, 2 skipped, OK
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   onton:
     repo: bdf1992/onton
     status: archived
-    github_archived: true   # read-only on GitHub; rejects pushes and metadata edits
+    github_archived: true
     line: substrate
-    claim: "Types how a generated artifact was formed, so trust carries across human, machine and composed work."
-    topics: "provenance type-system ai-native artifact-provenance receipts python"
+    claim: Types how a generated artifact was formed, so trust carries across human, machine and composed
+      work.
+    topics: provenance type-system ai-native artifact-provenance receipts python
     evidence:
-      command: "python -m pytest -q"
-      result: "1915 passed, 5 skipped"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node onton
+      result: Pinned source blob 1f8e338a1ef19c9fb06a3c8a05be61546eacb758; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: a78babae53dbaf609ded91e285268ce2d03c7bf4
+      path: README.md
+      blob: 1f8e338a1ef19c9fb06a3c8a05be61546eacb758
+      sha256: 8fbe53c0f4dd2c2d9ce9dda345a5b2cae4cb5b7240a05e90f4036cade6a7d5b3
+    note: GitHub marks this repository archived; the prior session reported a local fix, which is not
+      verified as present at this source revision.
+    reported_evidence:
+      command: python -m pytest -q
+      result: 1915 passed, 5 skipped
       observed: 2026-09-04
-    note: >-
-      Archived on GitHub, so it takes no more commits. A fix for a
-      stale-ticket ordering bug is written and verified but cannot be pushed
-      while the repository stays archived.
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   schematically:
     repo: bdf1992/schematically
     status: active
     line: surface
-    featured: true   # the most current work, and the only one graded by mutation testing
-    claim: "A schematic editor whose document is a semantic model of components, parts and wires rather than a drawing."
-    topics: "schematic-editor semantic-model svg mcp ai-native browser javascript"
+    featured: true
+    claim: A schematic editor whose document is a semantic model of components, parts and wires rather
+      than a drawing.
+    topics: schematic-editor semantic-model svg mcp ai-native browser javascript
     evidence:
-      command: "python scripts/qa.py"
-      result: "exit 0, 37 suites + 17 JS syntax checks, 14 mutants killed 0 survived"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node schematically
+      result: Pinned source blob b6e51c261b2df4237f9b42743f80a7058e6c2487; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 5622888813a07fcc83868028b47fc9017302da77
+      path: README.md
+      blob: b6e51c261b2df4237f9b42743f80a7058e6c2487
+      sha256: bea8c702bd7127cf6d8a1b503a721bdb43013233f7f9e995bfa3e22c8de28264
+    reported_evidence:
+      command: python scripts/qa.py
+      result: exit 0, 37 suites + 17 JS syntax checks, 14 mutants killed 0 survived
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   canvas:
     repo: bdf1992/Canvas
     status: superseded
     line: surface
-    claim: "Arranges addressable things in space, relates them visibly, and wires a subset into executable circuits."
-    topics: "spatial-composition canvas wiring addressable-objects python"
+    claim: Arranges addressable things in space, relates them visibly, and wires a subset into executable
+      circuits.
+    topics: spatial-composition canvas wiring addressable-objects python
     evidence:
-      command: "python -m pytest -q"
-      result: "30 passed"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node canvas
+      result: Pinned source blob fa2765fbe659b3a04b43292e3c6e3eb203e57789; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 157e154241c4bb341625c54b5f9ccd9327d009bd
+      path: README.md
+      blob: fa2765fbe659b3a04b43292e3c6e3eb203e57789
+      sha256: d059dd84450188fa4fa17d3d857e4ae4551af55c06c7b66912efc2e3be52acc8
+    reported_evidence:
+      command: python -m pytest -q
+      result: 30 passed
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: A documented citation or optional-provider relation is recorded; no working runtime
+      dependency is inferred.
+    status_basis: Prior owner declaration reported in the lineage commit; distinct from GitHub archival
+      state.
   familiar:
     repo: bdf1992/familiar
     status: active
     line: instrument
-    featured: true   # a complete reference profile with 463 tests behind it
-    claim: "A local-first workbench for agent guidance that a practitioner has to accept before it binds."
-    topics: "agent-guidance local-first workbench portable-agents python"
+    featured: true
+    claim: A local-first experimental workbench for portable agent guidance and evidence-backed skill
+      evolution.
+    topics: agent-guidance local-first workbench portable-agents python
     evidence:
-      command: "python -m pytest -q"
-      result: "463 passed, 86 subtests passed"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node familiar
+      result: Pinned source blob 81a2678760a1e81fa93233bf0c78714e729689ca; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: cc0e7b75557a1527a16ac458a8612146f08faaa2
+      path: README.md
+      blob: 81a2678760a1e81fa93233bf0c78714e729689ca
+      sha256: ead845674e7bc76e53c940bde8b6f9120866713c5b7b20d83d265d83723be58b
+    reported_evidence:
+      command: python -m pytest -q
+      result: 463 passed, 86 subtests passed
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: A documented citation or optional-provider relation is recorded; no working runtime
+      dependency is inferred.
   owl:
     repo: bdf1992/Owl
     status: active
     line: method
-    claim: "Turns a rough request or exploratory mark into a complete, inspectable result, then redraws that same target from feedback without drifting into another project."
-    topics: "methodology prototyping claude-code skill iteration"
+    claim: Turns a rough request or exploratory mark into a complete, inspectable result, then redraws
+      that same target from feedback without drifting into another project.
+    topics: methodology prototyping claude-code skill iteration
     evidence:
-      command: "cd draw-the-owl && python -m pytest -q"
-      result: "38 passed, 12 subtests passed"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node owl
+      result: Pinned source blob da75fc7de7794f5e4e44f9b70bcd84ec630df414; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 58dcc1cf77d52a4b7579408e806e0f69aa292d98
+      path: README.md
+      blob: da75fc7de7794f5e4e44f9b70bcd84ec630df414
+      sha256: 22414581b47ca62398c37bd6f03180ae078faccb96b05f3a42f2f666f7f7cfe3
+    reported_evidence:
+      command: cd draw-the-owl && python -m pytest -q
+      result: 38 passed, 12 subtests passed
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   howdo:
     repo: bdf1992/HowDo
     status: active
     line: method
-    featured: true   # the method most legible to a reader who is not going to read code
-    claim: "A discipline for understanding a problem before acting on it."
-    topics: "methodology discipline understanding-before-acting python"
+    featured: true
+    claim: A discipline for understanding a problem before acting on it.
+    topics: methodology discipline understanding-before-acting python
     evidence:
-      command: "python -m pytest -q"
-      result: "591 passed, 273 subtests passed"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node howdo
+      result: Pinned source blob 38dd101f641d231ae6a4cc6213e46fe4695090f6; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: f25265770d47ff9733b4ca54fe2b1691cf79153b
+      path: README.md
+      blob: 38dd101f641d231ae6a4cc6213e46fe4695090f6
+      sha256: 1ef812b6752a6649ca8e0b3fb40902981b7b1be66cc76902829d56467d298028
+    reported_evidence:
+      command: python -m pytest -q
+      result: 591 passed, 273 subtests passed
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   s4:
     repo: bdf1992/S4
     status: experiment
     line: method
-    claim: "Tests whether the two-axis split between programs and protocols survives being handed to a fresh agent."
-    topics: "protocol experiment agent-harness claude-code subprotocol"
+    claim: Tests whether the two-axis split between programs and protocols survives being handed to a
+      fresh agent.
+    topics: protocol experiment agent-harness claude-code subprotocol
     evidence:
-      command: "PYTHONPATH=. python boards/collectors/test_factory_install_drift.py"
-      result: "exit 0, factory install_drift 5/5 cases pass"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node s4
+      result: Pinned source blob 8dd9bd171a16b7e558bb34ec77a1ee66fdf87230; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: ddadfb7fd4489e3cd297f2c4ede8d869a65b6dbc
+      path: README.md
+      blob: 8dd9bd171a16b7e558bb34ec77a1ee66fdf87230
+      sha256: 8c368026256c7900243fa4ffc89e9b3efbdd053a41dc54fc4c3daa88df2061f0
+    reported_evidence:
+      command: PYTHONPATH=. python boards/collectors/test_factory_install_drift.py
+      result: exit 0, factory install_drift 5/5 cases pass
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   ddd-ccc:
     repo: bdf1992/DDD-CCC
     status: active
     line: instrument
-    claim: "Measures how much of a repository's meaning is actually covered by its tests, and names the gaps."
-    topics: "test-coverage semantic-coverage mutation-testing static-analysis python"
+    claim: A typed measurement framework that records claims about repositories and checks declared module
+      proofs.
+    topics: test-coverage semantic-coverage mutation-testing static-analysis python
     evidence:
-      command: "python -m s3.cubes.run_proofs"
-      result: "4 green, 0 fail, acceptance met"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node ddd-ccc
+      result: Pinned source blob 81a264f0185993138bec5cb2fc75686c9d3ede48; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 94877896d1df4a856aca8377d8f515d880f1b78e
+      path: README.md
+      blob: 81a264f0185993138bec5cb2fc75686c9d3ede48
+      sha256: b639e54a2fcd7a7b583ea0eaa34c029d8645dc62a98b9678697ec1d5c0efdf1f
+    reported_evidence:
+      command: python -m s3.cubes.run_proofs
+      result: 4 green, 0 fail, acceptance met
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   context:
     repo: bdf1992/context
     status: active
     line: instrument
-    claim: "A single-file harness that installs into any directory and gives an agent a bounded world to work in."
-    topics: "llm-agents context-management single-file harness bootstrap"
+    claim: A single-file harness that installs into any directory and gives an agent a bounded world to
+      work in.
+    topics: llm-agents context-management single-file harness bootstrap
     evidence:
-      command: "none — no test suite, by design"
-      result: "not applicable"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node context
+      result: Pinned source blob d38b17586e81823dfc5d5e0728a2a2a629188cb5; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 6433b88c1ba25ffb5763fc878ea43ced1769eeea
+      path: README.md
+      blob: d38b17586e81823dfc5d5e0728a2a2a629188cb5
+      sha256: f449372d24f8c1cbc425c32d846732514826cb856a9b20b8b8171f72615d88e8
+    reported_evidence:
+      command: none — no test suite, by design
+      result: not applicable
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   evident:
     repo: bdf1992/evident
     status: active
     line: instrument
-    claim: "A session-based instrument for bootstrapping how an organization works, in about thirty minutes."
-    topics: "organizational-design bootstrap ai-native session-based"
+    claim: A session-based instrument for bootstrapping how an organization works, in about thirty minutes.
+    topics: organizational-design bootstrap ai-native session-based
     evidence:
-      command: "python -m pytest -q"
-      result: "1 passed"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node evident
+      result: Pinned source blob 84f232017fbb573ef4ef296056b2eb7aa28ab4b3; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 7db33ec8f12d33c0e32e3c414ba62656e259b2d5
+      path: README.md
+      blob: 84f232017fbb573ef4ef296056b2eb7aa28ab4b3
+      sha256: b782f20c8a3c2d9ea61ea70f201daa3bc9316fbada196cbad3ce0319ef57dea1
+    reported_evidence:
+      command: python -m pytest -q
+      result: 1 passed
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   system-cartographer:
     repo: bdf1992/system-cartographer
     status: active
     line: instrument
-    claim: "A Claude Code skill that reverse-engineers an undocumented agent or AI-native system into a description complete enough to rebuild it."
-    topics: "claude-code skill reverse-engineering documentation ai-native lineage"
+    claim: A Claude Code skill that reverse-engineers an undocumented agent or AI-native system into a
+      description complete enough to rebuild it.
+    topics: claude-code skill reverse-engineering documentation ai-native lineage
     evidence:
-      command: "none — no test suite, by design"
-      result: "not applicable"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node system-cartographer
+      result: Pinned source blob a1fc3af3ef3c833d16b6c954d02b2abedcca8dae; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 453975f36f4aea30b0de8bad7df218f31aba00f3
+      path: README.md
+      blob: a1fc3af3ef3c833d16b6c954d02b2abedcca8dae
+      sha256: 19eca271fedb954bddb3dc34c01d1e2ef22d7baae6f5910131e39156a381f764
+    reported_evidence:
+      command: none — no test suite, by design
+      result: not applicable
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   small-world:
     repo: bdf1992/small-world
     status: active
     line: world
-    featured: true   # the Catalyst Core thread, which the owner asked to keep visible
-    claim: "A bounded lab for generative-world architecture, built for Catalyst Core."
-    topics: "generative-worlds architecture catalyst-core javascript simulation"
+    featured: true
+    claim: A bounded lab for generative-world architecture, built for Catalyst Core.
+    topics: generative-worlds architecture catalyst-core javascript simulation
     evidence:
-      command: "npm test"
-      result: "9 suites, exit 0"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node small-world
+      result: Pinned source blob 2f716b3d3ba5dc3eba3f84205b4ce631824ae6db; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 85e83324b2e5118419d4faaaff2f49772761ff58
+      path: README.md
+      blob: 2f716b3d3ba5dc3eba3f84205b4ce631824ae6db
+      sha256: 3d8998432041f79dd2c4ef1abe274831df7bbd9b432d956904d38134309da940
+    reported_evidence:
+      command: npm test
+      result: 9 suites, exit 0
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   ide:
     repo: bdf1992/ide
     status: active
     line: surface
-    claim: "A small in-chat editor that opens in a side panel and reuses proven browser components."
-    topics: "editor chatgpt browser side-panel javascript"
+    claim: A small in-chat editor that opens in a side panel and reuses proven browser components.
+    topics: editor chatgpt browser side-panel javascript
     evidence:
-      command: "cd poc/neural-elaboration && python -m pytest -q"
-      result: "17 passed"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node ide
+      result: Pinned source blob f3f50ddc4fdbc70fb9a1642696db7be559a221d5; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 71216cdd6b71605b09f5b9cbae70942a923524bf
+      path: README.md
+      blob: f3f50ddc4fdbc70fb9a1642696db7be559a221d5
+      sha256: 860a58d1d2f13acc50867eb137385941bf56ae22a757fe212c845c0f0b16258f
+    reported_evidence:
+      command: cd poc/neural-elaboration && python -m pytest -q
+      result: 17 passed
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   nostalgia:
     repo: bdf1992/nostalgia
     status: active
     line: instrument
-    claim: "An agent-assisted helper for getting classic games running and playable with others."
-    topics: "retro-gaming emulation multiplayer compatibility agent-assisted"
+    claim: An agent-assisted helper for getting classic games running and playable with others.
+    topics: retro-gaming emulation multiplayer compatibility agent-assisted
     evidence:
-      command: "none — no test suite"
-      result: "not applicable"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node nostalgia
+      result: Pinned source blob 621db1fccc2907ffd5ec3f301110b317a017bcf8; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 2b1fd4f9fb3e3446a0521069039e1f4dbeb02985
+      path: README.md
+      blob: 621db1fccc2907ffd5ec3f301110b317a017bcf8
+      sha256: 61b096d03ecbb4c34ebf1d16a831249fb4a7feadd89dd5e902dd3a6adef6fba1
+    reported_evidence:
+      command: none — no test suite
+      result: not applicable
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   holon:
     repo: bdf1992/holon
     status: archived
     line: reference
-    claim: "An archived notebook on whether one generative distinction could account for structure and form."
-    topics: "research archive notes formal-systems"
+    claim: A research notebook exploring generative distinctions, structure, and form.
+    topics: research archive notes formal-systems
     evidence:
-      command: "none — no test suite, no entry point"
-      result: "1358 markdown documents, 24 commits, last worked 2025-11-30"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node holon
+      result: Pinned source blob 77194f3914348102300107605026bd784c2aa85b; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 238e0348d8030db36eba38418d2705284d07e6ff
+      path: README.md
+      blob: 77194f3914348102300107605026bd784c2aa85b
+      sha256: 832dde828cbbb8f0df46cdb482d4d95677286fbf213eedf73eb568d5afd30206
+    reported_evidence:
+      command: none — no test suite, no entry point
+      result: 1358 markdown documents, 24 commits, last worked 2025-11-30
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
+    status_basis: Prior owner declaration reported in the lineage commit; distinct from GitHub archival
+      state.
   agentic:
     repo: bdf1992/Agentic
     status: archived
-    github_archived: true   # read-only on GitHub; rejects pushes and metadata edits
+    github_archived: true
     line: reference
-    claim: "Spawned and scheduled real Claude Code sessions from a dashboard, each configured for a role."
-    topics: "multi-agent claude-code dashboard orchestration archive"
+    claim: Spawned and scheduled real Claude Code sessions from a dashboard, each configured for a role.
+    topics: multi-agent claude-code dashboard orchestration archive
     evidence:
-      command: "python -m pytest -q"
-      result: "not runnable here — 2 collection errors, missing service dependencies"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node agentic
+      result: Pinned source blob 500f8b0f31d37681922f13e497447b35ffa5d063; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 15a696a7869d9dbcb72332106ab2a742141c4689
+      path: README.md
+      blob: 500f8b0f31d37681922f13e497447b35ffa5d063
+      sha256: e9a1f73426a1e5447f74ae283297d6e8ec9b6f242490916bdb4d8146b4714c20
+    reported_evidence:
+      command: python -m pytest -q
+      result: not runnable here — 2 collection errors, missing service dependencies
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   langworld:
     repo: bdf1992/LangWorld
     status: reference
     line: reference
-    claim: "An unmodified copy of LangChain's react-agent template. None of the code is the owner's."
-    topics: "template langgraph third-party-copy reference"
+    claim: A copy of the LangChain ReAct agent template, retained as a reference.
+    topics: template langgraph third-party-copy reference
     evidence:
-      command: "git log --oneline"
-      result: "1 commit, LICENSE is MIT (c) 2024 LangChain"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node langworld
+      result: Pinned source blob ad089aed59143e001283f33ec43fa227cfe24a2f; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 525bea410dbaee5d2e4806a2abb922559e83c8cc
+      path: README.md
+      blob: ad089aed59143e001283f33ec43fa227cfe24a2f
+      sha256: e94cb559ec928715c0ea0a012ca6a1ec048de2f135e21a11dfb032dd0334b57e
+    reported_evidence:
+      command: git log --oneline
+      result: 1 commit, LICENSE is MIT (c) 2024 LangChain
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
   baseless:
     repo: bdf1992/baseless
-    status: empty
+    status: reference
     line: reference
-    claim: "An empty repository. The name is reserved and nothing has been committed to it."
-    topics: "placeholder"
+    claim: A reserved repository name with a placeholder README and license.
+    topics: placeholder
     evidence:
-      command: "git log --oneline"
-      result: "no history until a README stating it is empty was added 2026-09-04"
+      kind: source
+      command: python lineage/verify_sources.py --remote --node baseless
+      result: Pinned source blob fe6c46d226f4ec71156447f3bbce25408f5b03ef; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 25c3bd6691207d4f4d9208f421455c51a0960a4a
+      path: README.md
+      blob: fe6c46d226f4ec71156447f3bbce25408f5b03ef
+      sha256: 4d2b3f97501c3f429fcde64da193d24f4140c989591a9e46da0d46bafaec1f68
+    reported_evidence:
+      command: git log --oneline
+      result: no history until a README stating it is empty was added 2026-09-04
       observed: 2026-09-04
-
+      attribution: Previous session; not rerun in this pass; source revision was not recorded.
+    visibility: public
+    github_archived: false
+    fork: false
+    unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
+      inspection.
+  diedle:
+    repo: bdf1992/Diedle
+    status: experiment
+    line: world
+    claim: An idle dice game implemented in Unity on the Omega mathematical model.
+    topics: unity dice game
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node diedle
+      result: Pinned source blob f722c1e3b2e01a1a41a4ad4047820362fe31e1e5; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: cf463b438fd7044ed4ed203f3a4c95f3c6715738
+      path: README.md
+      blob: f722c1e3b2e01a1a41a4ad4047820362fe31e1e5
+      sha256: 1d5200e145c0908ed64d2f8b1029cfbdf5ad60196b5c5dae0c60362e6e1a6d7a
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: Fatihprlg/UnityProjectBase
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
+  field:
+    repo: bdf1992/field
+    status: reference
+    line: reference
+    claim: A reference fork of Microsoft Code - OSS.
+    topics: reference editor
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node field
+      result: Pinned source blob 9ef3a879555c3c2275039222f907e333e033738e; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: e78b7df27dcc7a796e47054d0d53ee2416c9266a
+      path: README.md
+      blob: 9ef3a879555c3c2275039222f907e333e033738e
+      sha256: c41e6171a6e5f057fcf562724531412aaaf2499c6a1bedb30d25fe1606fb99c1
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: microsoft/vscode
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
+  clouds:
+    repo: bdf1992/Clouds
+    status: reference
+    line: reference
+    claim: A reference fork of a Unity cloud raymarching experiment.
+    topics: reference unity raymarching
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node clouds
+      result: Pinned source blob 41923997396509ee3b8f0d93d5ed95190e2d1f24; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: fcc997c40d36c7bedf95a294cd2136b8c5127009
+      path: README.md
+      blob: 41923997396509ee3b8f0d93d5ed95190e2d1f24
+      sha256: 01327ec8653078226852dec49fe5ffe7a76da2d1aea9b563df91122414d9df3a
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: SebLague/Clouds
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
+  digitaldimensions:
+    repo: bdf1992/digitaldimensions
+    status: reference
+    line: reference
+    claim: A reference fork containing a browser dimensional incremental game.
+    topics: reference browser game
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node digitaldimensions
+      result: Pinned source blob d16c92984374a9868ead55be1f7360ac4367e450; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: fef3ce173acd97647a059ef4555ba55879f88b3c
+      path: index.html
+      blob: d16c92984374a9868ead55be1f7360ac4367e450
+      sha256: 5fdaf4d625a7a7a09e05b566988d69d79bd75bcc17ff51a47b8f773c9b6e2b62
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: MaxRobinsonTheGreat/hyperdimensions
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
+  slime-simulation:
+    repo: bdf1992/Slime-Simulation
+    status: reference
+    line: reference
+    claim: A reference fork of a Unity slime simulation.
+    topics: reference unity simulation
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node slime-simulation
+      result: Pinned source blob 261e9555c1303c6dd34857e951a3df2c727a408a; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 6794cfdf584f71c657bd16366e31bf422be99ee6
+      path: README.md
+      blob: 261e9555c1303c6dd34857e951a3df2c727a408a
+      sha256: d7de2f49981ba51199e4a77ae16ce0ed2e098536e0bbbef5e866c18e11af3152
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: SebLague/Slime-Simulation
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
+  fluid-sim:
+    repo: bdf1992/Fluid-Sim
+    status: reference
+    line: reference
+    claim: A reference fork of a Unity fluid simulation.
+    topics: reference unity simulation
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node fluid-sim
+      result: Pinned source blob e9b33bd6e34aac9109d81a75f82f9aab5643c78c; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 4717b7259718d349b0001c82836f24ce5fec81d7
+      path: README.md
+      blob: e9b33bd6e34aac9109d81a75f82f9aab5643c78c
+      sha256: ddc0dd246a823e376423ad1bdf157e2c3201b00db3bcba8b519077ac0eea510f
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: SebLague/Fluid-Sim
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
+  stableindexvector:
+    repo: bdf1992/StableIndexVector
+    status: reference
+    line: reference
+    claim: A reference fork of a C++ vector container with stable element identifiers.
+    topics: reference cpp data-structures
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node stableindexvector
+      result: Pinned source blob 40bfd88ce63a93d309a085b720d86052b836758a; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 59bbb4e1b9236ed6dbe6320f8ab3a64b6ee9b884
+      path: README.md
+      blob: 40bfd88ce63a93d309a085b720d86052b836758a
+      sha256: 5159f0a5401c5801c44f4d9b6f6276a97241fd9e97994d2135cd6cb06536b799
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: johnBuffer/StableIndexVector
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
+  antsimulator:
+    repo: bdf1992/AntSimulator
+    status: reference
+    line: reference
+    claim: A reference fork of a C++ ant simulation.
+    topics: reference cpp simulation
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node antsimulator
+      result: Pinned source blob 1fe067aeb829e40fcba32fb63812d8c018080048; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 57255f5bf0eb361a92d582b4cdf4fa8b96343d61
+      path: README.md
+      blob: 1fe067aeb829e40fcba32fb63812d8c018080048
+      sha256: 815433934d0f2926ee4322b75783fdcd5892d1226d63e01c0183e381c72b15c2
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: johnBuffer/AntSimulator
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
+  drew-s-campfire-videos:
+    repo: bdf1992/Drew-s-Campfire-Videos
+    status: reference
+    line: reference
+    claim: A reference fork of Manim and Blender animation source for Drew’s Campfire.
+    topics: reference animation manim
+    evidence:
+      kind: source
+      command: python lineage/verify_sources.py --remote --node drew-s-campfire-videos
+      result: Pinned source blob 4fd213d089d335c2d4621aa33dfd73cee44b6888; SHA256 and cited text verified
+      observed: '2026-09-05'
+      revision: 35f4c72e4b5a8990783375473e975340df9d1e76
+      path: README.md
+      blob: 4fd213d089d335c2d4621aa33dfd73cee44b6888
+      sha256: 31395df1e4fdd53436a41537a22ee0d97348449a36194481ae229ea572b1ba1a
+    visibility: public
+    github_archived: false
+    fork: true
+    upstream: drewscampfire/Drew-s-Campfire-Videos
+    unconnected_reason: Upstream reference or fork; no dependency from the authored projects was substantiated.
 edges:
-  - from: schematically
-    to: soveraeign
-    type: implements-format-of
-    evidence: >-
-      schematically's document format is namespaced under Soveraeign:
-      DATA-FORMATS.md:5 defines .sov as soveraeign.schematic/document@0.1,
-      DATA-FORMATS.md:18 gives the MIME type
-      application/vnd.soveraeign.schematic+json, and API.md:34 returns a
-      soveraeign.schematic/package@0.1 payload. index.html titles itself
-      "Soveraeign Schematic Lab 0.1 Beta.24".
-
-  - from: schematically
-    to: canvas
-    type: supersedes
-    evidence: >-
-      Stated by the owner, 2026-09-04. No textual link exists between the two
-      repositories, and their vocabularies are disjoint: Canvas uses Board,
-      Frame, Card and Grounded Field; schematically uses Component, Wire,
-      Part and signal. What corroborates the claim is overlapping purpose —
-      both arrange things in space and wire them together — and relative
-      activity: schematically has 59 commits and is current, Canvas has 20.
-      schematically's CANVAS-MODEL.md is not evidence; it uses "canvas" as a
-      model property and names none of Canvas's terms.
-
-  - from: ontum
-    to: onton
-    type: supersedes
-    evidence: >-
-      ontum's glossary records the rename. glyphs/knolling.md:142 lists
-      "Onton | DEAD | Former unit-name", and docs/sources/rosetta-creole.md:15
-      says the source "was written with the dead unit-name Onton, renamed
-      Onton -> Ontum". Recorded with a caveat: this is a rename of a
-      unit-name inside ontum's own vocabulary, sitting beside etymontoken and
-      epistemontoken. Neither repository states that one superseded the other.
-
-  - from: soveraeign
-    to: canvas
-    type: may-provide-substrate
-    evidence: >-
-      Canvas/README.md:5 says integrations such as Soveraeign "may provide
-      stronger grounding, execution, custody, provenance, authority, and
-      evidence, but they are providers of those semantics rather than
-      prerequisites for Canvas itself". The dependency is optional and Canvas
-      is built to work without it: TASK-2.md:38 records "no Soveraeign
-      dependency" and WITNESS.md:3 proves the contract without it.
-
-  - from: familiar
-    to: soveraeign
-    type: adapts
-    evidence: >-
-      familiar's skilltree kernel accepts Soveraeign skills as one artifact
-      type. cast/tests/test_skilltree_kernel.py:49 uses the adapter
-      "soveraeign-skill/v1", and line 63 lists it alongside agent-skill/v1,
-      spell/v0.2 and opaque/v1.
-
-  - from: familiar
-    to: owl
-    type: uses
-    evidence: >-
-      Owl is an agent role inside familiar's casting protocol.
-      cast/examples/find-familiar/SPELL.md:31 says "The Owl Agent may conduct
-      the cast using owl.system as its Familiar", and bounds it: Owl cannot
-      accept the Whole for the subject, grant authority, or waive
-      Requirements. The relation is one-way; Owl does not mention familiar.
-
-  - from: s4
-    to: onton
-    type: sibling-phase
-    evidence: >-
-      Both define the term "Software 4.0" independently, on the same
-      1.0/2.0/3.0 ladder, and reach different answers. onton/README.md:15
-      says 4.0 is "software that types its own delivery layer". S4's
-      CLAUDE.md:59 says 4.0 is a "coupled system ... not a fourth model
-      class; a coupling of the three under shared discipline". Recorded with
-      a caveat: neither repository references the other anywhere, so this is
-      parallel work on one question rather than a cited relation.
-
-# Edges tested and not recorded, because no evidence was found in either
-# direction: holon -> ontum, holon -> soveraeign, soveraeign -> ontum,
-# familiar -> howdo, agentic -> soveraeign, and the "instruments" relations
-# claimed for ddd-ccc, context, evident and system-cartographer. Each of
-# those four references zero sibling repositories, and no repository
-# references them.
-#
-# small-world names Catalyst Core (README.md:3, package.json:5) but never
-# names Diedle, so no edge between them is recorded here.
+- from: soveraeign
+  to: canvas
+  type: may-provide-substrate
+  state: documented
+  evidence: Canvas names Soveraeign as an optional provider of grounding, execution, custody, provenance,
+    authority, and evidence.
+  limit: This is an intended optional integration, not proof of a running adapter or a core dependency.
+  sources:
+  - node: canvas
+    path: README.md
+    revision: 157e154241c4bb341625c54b5f9ccd9327d009bd
+    sha256: d059dd84450188fa4fa17d3d857e4ae4551af55c06c7b66912efc2e3be52acc8
+    quote: Integrations such as Soveraeign may provide stronger grounding
+  basis: repository-reference
+- from: familiar
+  to: soveraeign
+  type: references
+  state: documented
+  evidence: Familiar names Soveraeign’s typed-contract charting in its reviewed source baselines.
+  limit: A source reference does not prove an installed adapter or runtime dependency.
+  sources:
+  - node: familiar
+    path: README.md
+    revision: cc0e7b75557a1527a16ac458a8612146f08faaa2
+    sha256: ead845674e7bc76e53c940bde8b6f9120866713c5b7b20d83d265d83723be58b
+    quote: Soveraeign's experimental typed-contract charting
+  basis: repository-reference
+- from: schematically
+  to: canvas
+  type: supersedes
+  state: declared
+  evidence: The previous lineage session records an owner statement that Schematically replaced Canvas.
+  limit: The owner statement is reported by that session; no repository integration or API compatibility
+    is established.
+  sources:
+  - node: system-cartographer
+    path: lineage/lineage.yaml
+    revision: 453975f36f4aea30b0de8bad7df218f31aba00f3
+    sha256: dd9f9f1f144e3304daf6e55060ff2a1846c9c00e8107a1479f15dc692e18a58c
+    quote: Stated by the owner, 2026-09-04.
+  basis: owner-report
+- from: s4
+  to: onton
+  type: sibling-phase
+  state: inferred
+  evidence: Both repositories frame experiments around Software 4.0 using the 1.0/2.0/3.0 distinction.
+  limit: Shared questions support a comparison, not a proven chronology or explicit repository relationship.
+  sources:
+  - node: s4
+    path: README.md
+    revision: ddadfb7fd4489e3cd297f2c4ede8d869a65b6dbc
+    sha256: 8c368026256c7900243fa4ffc89e9b3efbdd053a41dc54fc4c3daa88df2061f0
+    quote: 3.0 software is here. 4.0 is not.
+  - node: onton
+    path: README.md
+    revision: a78babae53dbaf609ded91e285268ce2d03c7bf4
+    sha256: 8fbe53c0f4dd2c2d9ce9dda345a5b2cae4cb5b7240a05e90f4036cade6a7d5b3
+    quote: Software 4.0 is software that types its own delivery layer.
+  basis: comparison
+- from: ontum
+  to: onton
+  type: supersedes
+  state: unsupported
+  evidence: Ontum records the retirement of the unit-name Onton.
+  limit: A vocabulary rename does not establish that bdf1992/ontum superseded bdf1992/onton. Excluded
+    from graph projections.
+  sources:
+  - node: ontum
+    path: docs/phase-2/ontum-evolution.md
+    revision: 43b8ac3839214e24f3667ce99443dbc537b5e5c0
+    sha256: 02516e8f9f89a645d065eec7f386329cd21902e91dec6e330225c799bc496130
+    quote: '**Onton** **[DEAD]** — the original unit-name'
+  basis: vocabulary
+- from: schematically
+  to: soveraeign
+  type: references
+  state: inferred
+  evidence: Schematically stores documents under the soveraeign.schematic namespace.
+  limit: A shared namespace alone does not prove that the Soveraeign repository owns the format or is
+    hosted by the editor.
+  sources:
+  - node: schematically
+    path: DATA-FORMATS.md
+    revision: 5622888813a07fcc83868028b47fc9017302da77
+    sha256: 82cc4a3603f1ffca57bc6961176c6b043859b4fdf2709b45e04a393c68f82dd9
+    quote: soveraeign.schematic/document@0.1
+  basis: namespace
+- from: familiar
+  to: owl
+  type: references
+  state: inferred
+  evidence: Familiar’s find-familiar example names an Owl Agent and owl.system.
+  limit: The named agent role is not enough to prove use of the bdf1992/Owl repository.
+  sources:
+  - node: familiar
+    path: cast/examples/find-familiar/SPELL.md
+    revision: cc0e7b75557a1527a16ac458a8612146f08faaa2
+    sha256: 78ae34e10a9d26bde1e1b89352803644b6be8772743b11a9657fc6f56c52e3d2
+    quote: The Owl Agent may conduct the cast using `owl.system` as its Familiar.
+  basis: role-name
+scope: public
+projection:
+  lineage_url: https://github.com/bdf1992/system-cartographer/blob/claude/access-requirements-zbl1s7/lineage/lineage.yaml
+  order:
+  - substrate
+  - surface
+  - instrument
+  - method
+  - world
+  - reference

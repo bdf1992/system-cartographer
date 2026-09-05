@@ -1,11 +1,93 @@
 {
+  "schema": "soveraeign-clarity-coverage/v1",
+  "skill": "clarity/v1",
   "reviews": {
     "README.md": {
-      "artifact_digest": "sha256:19eca271fedb954bddb3dc34c01d1e2ef22d7baae6f5910131e39156a381f764",
-      "basis": [],
+      "artifact_digest": "sha256:7faacdcc3d112cf6c285b21707139ea0c13af3e34a373c7edd1a17b083557567",
+      "basis": [
+        {
+          "path": "SKILL.md",
+          "digest": "sha256:d8863a34f0854897a665696395108960b207fe6a74cb43fa37b276a601111285"
+        },
+        {
+          "path": "LICENSE",
+          "digest": "sha256:2908b10126a0e8a544019531ff33c7fdab103929dcbf159f8e13798c6d886cbd"
+        },
+        {
+          "path": "lineage/lineage.yaml",
+          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+        },
+        {
+          "path": "lineage/render_readme_section.py",
+          "digest": "sha256:1996aa799c49835b8fb5cd446afba4aaa1d4da791a05d31d47a61cc5b0000b82"
+        }
+      ],
       "changed": true
+    },
+    "lineage/profile-voice.md": {
+      "artifact_digest": "sha256:f4b974605c4bba55bc110bc11261a15fc629bb94b4598173cec68034d083a6fb",
+      "basis": [
+        {
+          "path": "lineage/lineage.yaml",
+          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+        }
+      ],
+      "changed": true
+    },
+    "lineage/profile-README.md": {
+      "artifact_digest": "sha256:2733162f2b0a215839805828ccb3d38cfe5642a15c2d38123ba06b5b725cf522",
+      "basis": [
+        {
+          "path": "lineage/lineage.yaml",
+          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+        },
+        {
+          "path": "lineage/profile-voice.md",
+          "digest": "sha256:f4b974605c4bba55bc110bc11261a15fc629bb94b4598173cec68034d083a6fb"
+        },
+        {
+          "path": "lineage/render_profile.py",
+          "digest": "sha256:cbb344f46b5d92f0b5377cffdb45f6ff3e93baed3a49212f0aececfed74436d2"
+        }
+      ],
+      "changed": true
+    },
+    "lineage/LINEAGE.md": {
+      "artifact_digest": "sha256:a6d03436c74b97218582e4d9537945607c537306b440ae6e777cf7ef945942cb",
+      "basis": [
+        {
+          "path": "lineage/lineage.yaml",
+          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+        },
+        {
+          "path": "lineage/render.py",
+          "digest": "sha256:e674f28dd7129875abbff435e0908a21eafde35784f897ca4ec41b460cbba699"
+        }
+      ],
+      "changed": true
+    },
+    "lineage/WORK-QUEUE.md": {
+      "artifact_digest": "sha256:3c7fbe97ed64bf16806e5d4a2f98f11b9300ffedb07b15a9d0337716c4ae4ad2",
+      "basis": [
+        {
+          "path": "lineage/lineage.yaml",
+          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+        },
+        {
+          "path": "lineage/HANDOFF.md",
+          "digest": "sha256:01e32915045618c8c53ee17530fa453ae74236894db5444762b52499a3385628"
+        },
+        {
+          "path": "lineage/render.py",
+          "digest": "sha256:e674f28dd7129875abbff435e0908a21eafde35784f897ca4ec41b460cbba699"
+        }
+      ],
+      "changed": true
+    },
+    ".clarity/README.md": {
+      "artifact_digest": "sha256:13d64536933d4ee395b239983225c98f06fab298766549177233ba0362b363a1",
+      "basis": [],
+      "changed": false
     }
-  },
-  "schema": "soveraeign-clarity-coverage/v1",
-  "skill": "clarity/v1"
+  }
 }

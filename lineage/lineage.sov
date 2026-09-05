@@ -1,0 +1,969 @@
+{
+  "schema": "soveraeign.schematic/document@0.1",
+  "id": "public-repository-lineage",
+  "revision": 0,
+  "meta": {
+    "title": "Public repository lineage",
+    "description": "Generated presentation. Edge labels retain evidence state. No runtime integration or permission is implied."
+  },
+  "components": [
+    {
+      "id": "repo:soveraeign",
+      "type": "hold",
+      "x": 180,
+      "y": 160,
+      "config": {
+        "label": "Soveraeign",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "People and AI models work through the same records, permissions and history.\nbdf1992/Soveraeign",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:ontum",
+      "type": "hold",
+      "x": 520,
+      "y": 160,
+      "config": {
+        "label": "ontum",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A governed gateway for autonomous AI work, where the append-only log is the truth and every other view is folded from it.\nbdf1992/ontum",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:onton",
+      "type": "hold",
+      "x": 860,
+      "y": 160,
+      "config": {
+        "label": "onton",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "Types how a generated artifact was formed, so trust carries across human, machine and composed work.\nbdf1992/onton",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:schematically",
+      "type": "hold",
+      "x": 1200,
+      "y": 160,
+      "config": {
+        "label": "schematically",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A schematic editor whose document is a semantic model of components, parts and wires rather than a drawing.\nbdf1992/schematically",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:canvas",
+      "type": "hold",
+      "x": 180,
+      "y": 370,
+      "config": {
+        "label": "Canvas",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "Arranges addressable things in space, relates them visibly, and wires a subset into executable circuits.\nbdf1992/Canvas",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:familiar",
+      "type": "hold",
+      "x": 520,
+      "y": 370,
+      "config": {
+        "label": "familiar",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A local-first experimental workbench for portable agent guidance and evidence-backed skill evolution.\nbdf1992/familiar",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:owl",
+      "type": "hold",
+      "x": 860,
+      "y": 370,
+      "config": {
+        "label": "Owl",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "Turns a rough request or exploratory mark into a complete, inspectable result, then redraws that same target from feedback without drifting into another project.\nbdf1992/Owl",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:howdo",
+      "type": "hold",
+      "x": 1200,
+      "y": 370,
+      "config": {
+        "label": "HowDo",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A discipline for understanding a problem before acting on it.\nbdf1992/HowDo",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:s4",
+      "type": "hold",
+      "x": 180,
+      "y": 580,
+      "config": {
+        "label": "S4",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "Tests whether the two-axis split between programs and protocols survives being handed to a fresh agent.\nbdf1992/S4",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:ddd-ccc",
+      "type": "hold",
+      "x": 520,
+      "y": 580,
+      "config": {
+        "label": "DDD-CCC",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A typed measurement framework that records claims about repositories and checks declared module proofs.\nbdf1992/DDD-CCC",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:context",
+      "type": "hold",
+      "x": 860,
+      "y": 580,
+      "config": {
+        "label": "context",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A single-file harness that installs into any directory and gives an agent a bounded world to work in.\nbdf1992/context",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:evident",
+      "type": "hold",
+      "x": 1200,
+      "y": 580,
+      "config": {
+        "label": "evident",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A session-based instrument for bootstrapping how an organization works, in about thirty minutes.\nbdf1992/evident",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:system-cartographer",
+      "type": "hold",
+      "x": 180,
+      "y": 790,
+      "config": {
+        "label": "system-cartographer",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A Claude Code skill that reverse-engineers an undocumented agent or AI-native system into a description complete enough to rebuild it.\nbdf1992/system-cartographer",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:small-world",
+      "type": "hold",
+      "x": 520,
+      "y": 790,
+      "config": {
+        "label": "small-world",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A bounded lab for generative-world architecture, built for Catalyst Core.\nbdf1992/small-world",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:ide",
+      "type": "hold",
+      "x": 860,
+      "y": 790,
+      "config": {
+        "label": "ide",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A small in-chat editor that opens in a side panel and reuses proven browser components.\nbdf1992/ide",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:nostalgia",
+      "type": "hold",
+      "x": 1200,
+      "y": 790,
+      "config": {
+        "label": "nostalgia",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "An agent-assisted helper for getting classic games running and playable with others.\nbdf1992/nostalgia",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:holon",
+      "type": "hold",
+      "x": 180,
+      "y": 1000,
+      "config": {
+        "label": "holon",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A research notebook exploring generative distinctions, structure, and form.\nbdf1992/holon",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:agentic",
+      "type": "hold",
+      "x": 520,
+      "y": 1000,
+      "config": {
+        "label": "Agentic",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "Spawned and scheduled real Claude Code sessions from a dashboard, each configured for a role.\nbdf1992/Agentic",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:langworld",
+      "type": "hold",
+      "x": 860,
+      "y": 1000,
+      "config": {
+        "label": "LangWorld",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A copy of the LangChain ReAct agent template, retained as a reference.\nbdf1992/LangWorld",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:baseless",
+      "type": "hold",
+      "x": 1200,
+      "y": 1000,
+      "config": {
+        "label": "baseless",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reserved repository name with a placeholder README and license.\nbdf1992/baseless",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:diedle",
+      "type": "hold",
+      "x": 180,
+      "y": 1210,
+      "config": {
+        "label": "Diedle",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "An idle dice game implemented in Unity on the Omega mathematical model.\nbdf1992/Diedle",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:field",
+      "type": "hold",
+      "x": 520,
+      "y": 1210,
+      "config": {
+        "label": "field",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reference fork of Microsoft Code - OSS.\nbdf1992/field",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:clouds",
+      "type": "hold",
+      "x": 860,
+      "y": 1210,
+      "config": {
+        "label": "Clouds",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reference fork of a Unity cloud raymarching experiment.\nbdf1992/Clouds",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:digitaldimensions",
+      "type": "hold",
+      "x": 1200,
+      "y": 1210,
+      "config": {
+        "label": "digitaldimensions",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reference fork containing a browser dimensional incremental game.\nbdf1992/digitaldimensions",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:slime-simulation",
+      "type": "hold",
+      "x": 180,
+      "y": 1420,
+      "config": {
+        "label": "Slime-Simulation",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reference fork of a Unity slime simulation.\nbdf1992/Slime-Simulation",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:fluid-sim",
+      "type": "hold",
+      "x": 520,
+      "y": 1420,
+      "config": {
+        "label": "Fluid-Sim",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reference fork of a Unity fluid simulation.\nbdf1992/Fluid-Sim",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:stableindexvector",
+      "type": "hold",
+      "x": 860,
+      "y": 1420,
+      "config": {
+        "label": "StableIndexVector",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reference fork of a C++ vector container with stable element identifiers.\nbdf1992/StableIndexVector",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:antsimulator",
+      "type": "hold",
+      "x": 1200,
+      "y": 1420,
+      "config": {
+        "label": "AntSimulator",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reference fork of a C++ ant simulation.\nbdf1992/AntSimulator",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    },
+    {
+      "id": "repo:drew-s-campfire-videos",
+      "type": "hold",
+      "x": 180,
+      "y": 1630,
+      "config": {
+        "label": "Drew-s-Campfire-Videos",
+        "signalMode": "passive",
+        "presentation": {
+          "size": {
+            "w": 230,
+            "h": 120
+          },
+          "text": "A reference fork of Manim and Blender animation source for Drew’s Campfire.\nbdf1992/Drew-s-Campfire-Videos",
+          "internalLayout": "text-only"
+        },
+        "ports": {
+          "in": {
+            "side": "left",
+            "face": "external",
+            "flow": "in"
+          },
+          "out": {
+            "side": "right",
+            "face": "external",
+            "flow": "out"
+          }
+        }
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "relation:0",
+      "a": "repo:soveraeign",
+      "b": "repo:canvas",
+      "aSide": "out",
+      "bSide": "in",
+      "config": {
+        "direction": "forward",
+        "label": "may-provide-substrate [documented]"
+      },
+      "editor": {
+        "rate": 0
+      }
+    },
+    {
+      "id": "relation:1",
+      "a": "repo:familiar",
+      "b": "repo:soveraeign",
+      "aSide": "out",
+      "bSide": "in",
+      "config": {
+        "direction": "forward",
+        "label": "references [documented]"
+      },
+      "editor": {
+        "rate": 0
+      }
+    },
+    {
+      "id": "relation:2",
+      "a": "repo:schematically",
+      "b": "repo:canvas",
+      "aSide": "out",
+      "bSide": "in",
+      "config": {
+        "direction": "forward",
+        "label": "supersedes [declared]"
+      },
+      "editor": {
+        "rate": 0
+      }
+    },
+    {
+      "id": "relation:3",
+      "a": "repo:s4",
+      "b": "repo:onton",
+      "aSide": "out",
+      "bSide": "in",
+      "config": {
+        "direction": "forward",
+        "label": "sibling-phase [inferred]"
+      },
+      "editor": {
+        "rate": 0
+      }
+    },
+    {
+      "id": "relation:5",
+      "a": "repo:schematically",
+      "b": "repo:soveraeign",
+      "aSide": "out",
+      "bSide": "in",
+      "config": {
+        "direction": "forward",
+        "label": "references [inferred]"
+      },
+      "editor": {
+        "rate": 0
+      }
+    },
+    {
+      "id": "relation:6",
+      "a": "repo:familiar",
+      "b": "repo:owl",
+      "aSide": "out",
+      "bSide": "in",
+      "config": {
+        "direction": "forward",
+        "label": "references [inferred]"
+      },
+      "editor": {
+        "rate": 0
+      }
+    }
+  ],
+  "references": [],
+  "layout": {}
+}
