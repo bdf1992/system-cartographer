@@ -1,5 +1,29 @@
 # Continue the public lineage
 
+## Public entrance pass — 2026-09-08
+
+The profile now leads with six recent original projects and a plain implementation-state summary. The remaining public experiments and forks are available in a collapsed list. `lineage.yaml` remains the source; `featured` and `portfolio` choose the front row without asserting a runtime dependency or promoting project standing.
+
+| Repository | Result | Validation |
+| --- | --- | --- |
+| ide | README purpose, prototype status, launch instructions and limitations landed on `main` ([commit](https://github.com/bdf1992/ide/commit/56479997f810dde035a0e025620fad1a47a6cc97)) | Chat artifact exporter passed; output equals the canonical shell |
+| small-world | M0.6/M0.7 state and owner-revision boundary landed on `main` ([commit](https://github.com/bdf1992/small-world/commit/fc11a8e14b29d6c25c0d74d3120890f76afa63ed)) | All nine package-declared Node test commands passed |
+| familiar | Entry links, Work/Current distinctions and missing Pydantic test dependency landed on `main` ([commit](https://github.com/bdf1992/familiar/commit/d52265f02e85b47802226bfd81fc5a3615ab1589)) | 463 unittest tests passed |
+| nostalgia | Bootstrap state and validation boundary moved to the top on `main` ([commit](https://github.com/bdf1992/nostalgia/commit/a5d5801b45134c28375055e2641784a87d48adc7)) | Catalog JSON parsed; PowerShell was unavailable, so no helper execution is claimed |
+| Canvas | Purpose, 0.1 prototype state and first-example links landed on `main` ([commit](https://github.com/bdf1992/Canvas/commit/9c90a870db37ff334d752d1427a3636dc95d70ba)) | 30 unittest tests passed |
+| schematically | README is on [`docs/public-portfolio`](https://github.com/bdf1992/schematically/tree/docs/public-portfolio), based on the merged Point/Path/Plane repair | Six static QA suites passed; the browser gate could not start because Chromium installation failed. Remains unlanded |
+| Soveraeign | README, clarity receipt and generated documentation are on [`docs/public-portfolio-current`](https://github.com/bdf1992/Soveraeign/tree/docs/public-portfolio-current) | Verify and lint passed; independent prose/source review passed. Remains unlanded under repository landing rules |
+
+The GitHub Contents API returned the expected reviewed README blob for each landed update. No repositories were deleted, archived, renamed, or made private. Existing implementation PRs and historical evidence were preserved. No new PRs were opened, following the prior handoff's restriction.
+
+Remaining publication work: create public `bdf1992/bdf1992`, install the generated `profile-README.md` as its root `README.md`, apply the reviewed About-field plan with an owner-authenticated `gh`, and set profile pins. Repository creation, About-field administration, and pinning were not exposed by this connection. The profile source and this queue are retained on `system-cartographer`'s `docs/public-portfolio` branch.
+
+Soveraeign's candidate was reconstructed through the GitHub Git Data API because local Git had no push credentials. Its remote tree exactly matches the reviewed local tree; the remote commit is a distinct candidate and must retain its own verification and witness identity before landing. The earlier local frozen candidate remains preserved.
+
+One separate consistency finding remains for Soveraeign's owning documents: the earlier README review found a `NONE_ACTIVE` narrative in `CANON.md` against the live Phase 1.5 records. Check current `main` before changing that canonical document; this editorial pass did not settle product meaning.
+
+## Earlier lineage work
+
 The working source is `system-cartographer/lineage/lineage.yaml`. Keep this as one record while the profile repository is unavailable. The public source inventory covers 29 repositories as of 2026-09-05. Source verification is complete for this snapshot; repository runtime suites were not rerun in this pass.
 
 | Work | Owning repository | Acceptance evidence | State |

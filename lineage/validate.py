@@ -81,6 +81,16 @@ def validate(data):
         require(nonempty(node.get('claim')) and len(node.get('claim', '')) <= 350, label + ': invalid claim')
         require(type(node.get('github_archived')) is bool, label + ': github_archived must be Boolean')
         require(type(node.get('fork')) is bool, label + ': fork must be Boolean')
+        if node.get('featured'):
+            portfolio=node.get('portfolio')
+            if not isinstance(portfolio,dict):
+                errors.append(label + ': featured project needs portfolio details')
+            else:
+                require(not node.get('fork') and not node.get('github_archived'), label + ': featured project must be original and unarchived')
+                require(type(portfolio.get('order')) is int and portfolio['order'] > 0, label + ': invalid portfolio order')
+                for field in ['summary','state']:
+                    require(nonempty(portfolio.get(field)), label + ': missing portfolio '+field)
+                require(str(portfolio.get('state_url','')).startswith('https://github.com/'+repo+'/'), label + ': state must link to its owning repository')
         topics = node.get('topics', '')
         require(isinstance(topics, str), label + ': topics must be a string')
         if isinstance(topics, str):
@@ -94,6 +104,8 @@ def validate(data):
         for key, width in [('revision',40), ('blob',40), ('sha256',64)]:
             require(digest(ev.get(key),width), label + ': invalid ' + key)
         require(safe_path(ev.get('path')), label + ': unsafe evidence path')
+    orders=[n['portfolio']['order'] for n in nodes.values() if isinstance(n,dict) and n.get('featured') and isinstance(n.get('portfolio'),dict) and type(n['portfolio'].get('order')) is int]
+    require(len(orders)==len(set(orders)), 'featured projects need distinct portfolio order')
     seen, touched = set(), set()
     for index, edge in enumerate(edges):
         label = f'edge {index}'

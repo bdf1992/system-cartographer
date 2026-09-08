@@ -5,7 +5,6 @@ nodes:
     repo: bdf1992/Soveraeign
     status: active
     line: substrate
-    featured: true
     claim: People and AI models work through the same records, permissions and history.
     topics: local-first ai-native provenance audit-log permissions records python
     evidence:
@@ -27,11 +26,16 @@ nodes:
     fork: false
     unconnected_reason: A documented citation or optional-provider relation is recorded; no working runtime
       dependency is inferred.
+    featured: true
+    portfolio:
+      order: 2
+      summary: Local-first records, permissions, and operations shared by people and AI.
+      state: Experimental operating environment
+      state_url: https://github.com/bdf1992/Soveraeign/blob/main/STATUS.yaml
   ontum:
     repo: bdf1992/ontum
     status: active
     line: substrate
-    featured: true
     claim: A governed gateway for autonomous AI work, where the append-only log is the truth and every
       other view is folded from it.
     topics: ai-native append-only-log agent-governance autonomous-agents provenance python
@@ -86,7 +90,6 @@ nodes:
     repo: bdf1992/schematically
     status: active
     line: surface
-    featured: true
     claim: A schematic editor whose document is a semantic model of components, parts and wires rather
       than a drawing.
     topics: schematic-editor semantic-model svg mcp ai-native browser javascript
@@ -109,6 +112,12 @@ nodes:
     fork: false
     unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
       inspection.
+    featured: true
+    portfolio:
+      order: 1
+      summary: Edit connected schematic models visually or through an API.
+      state: Working 0.1 editor
+      state_url: https://github.com/bdf1992/schematically/blob/main/README.md
   canvas:
     repo: bdf1992/Canvas
     status: superseded
@@ -141,7 +150,6 @@ nodes:
     repo: bdf1992/familiar
     status: active
     line: instrument
-    featured: true
     claim: A local-first experimental workbench for portable agent guidance and evidence-backed skill
       evolution.
     topics: agent-guidance local-first workbench portable-agents python
@@ -164,6 +172,12 @@ nodes:
     fork: false
     unconnected_reason: A documented citation or optional-provider relation is recorded; no working runtime
       dependency is inferred.
+    featured: true
+    portfolio:
+      order: 5
+      summary: Validate skill collections and preserve evidence behind agent guidance.
+      state: Experimental workbench
+      state_url: https://github.com/bdf1992/familiar/blob/main/REPOSITORY_AUDIT.md
   owl:
     repo: bdf1992/Owl
     status: active
@@ -194,7 +208,6 @@ nodes:
     repo: bdf1992/HowDo
     status: active
     line: method
-    featured: true
     claim: A discipline for understanding a problem before acting on it.
     topics: methodology discipline understanding-before-acting python
     evidence:
@@ -216,6 +229,12 @@ nodes:
     fork: false
     unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
       inspection.
+    featured: true
+    portfolio:
+      order: 6
+      summary: A Claude Code plugin for understanding a problem and checking the work.
+      state: Plugin; RC hardening under review
+      state_url: https://github.com/bdf1992/HowDo/pull/30
   s4:
     repo: bdf1992/S4
     status: experiment
@@ -349,7 +368,6 @@ nodes:
     repo: bdf1992/small-world
     status: active
     line: world
-    featured: true
     claim: A bounded lab for generative-world architecture, built for Catalyst Core.
     topics: generative-worlds architecture catalyst-core javascript simulation
     evidence:
@@ -371,6 +389,12 @@ nodes:
     fork: false
     unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
       inspection.
+    featured: true
+    portfolio:
+      order: 4
+      summary: Generate and inspect repeatable worlds from content, seeds, and search budgets.
+      state: M0.6 prototype; M0.7 under revision
+      state_url: https://github.com/bdf1992/small-world/pull/20
   ide:
     repo: bdf1992/ide
     status: active
@@ -396,6 +420,12 @@ nodes:
     fork: false
     unconnected_reason: No repository-to-repository relationship was substantiated in this bounded source
       inspection.
+    featured: true
+    portfolio:
+      order: 3
+      summary: A browser IDE with Python execution and revision-aware chat patches.
+      state: Side-panel prototype
+      state_url: https://github.com/bdf1992/ide/blob/main/STATUS.md
   nostalgia:
     repo: bdf1992/nostalgia
     status: active

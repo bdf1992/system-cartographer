@@ -15,7 +15,7 @@
         },
         {
           "path": "lineage/lineage.yaml",
-          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+          "digest": "sha256:6169824a06223b219bf7e45c0b688499250243c4adef09209a4def17f86c4cfa"
         },
         {
           "path": "lineage/render_readme_section.py",
@@ -25,29 +25,29 @@
       "changed": true
     },
     "lineage/profile-voice.md": {
-      "artifact_digest": "sha256:f4b974605c4bba55bc110bc11261a15fc629bb94b4598173cec68034d083a6fb",
+      "artifact_digest": "sha256:941e5e860dee8c8391f1d3bbdd7e792379fdc32f3b12c5f0fb95b399d39fcdf3",
       "basis": [
         {
           "path": "lineage/lineage.yaml",
-          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+          "digest": "sha256:6169824a06223b219bf7e45c0b688499250243c4adef09209a4def17f86c4cfa"
         }
       ],
       "changed": true
     },
     "lineage/profile-README.md": {
-      "artifact_digest": "sha256:2733162f2b0a215839805828ccb3d38cfe5642a15c2d38123ba06b5b725cf522",
+      "artifact_digest": "sha256:622da0410d4d12258f69fa867d34ccaad9395fb6dd91dd03b4845d236b234318",
       "basis": [
         {
           "path": "lineage/lineage.yaml",
-          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+          "digest": "sha256:6169824a06223b219bf7e45c0b688499250243c4adef09209a4def17f86c4cfa"
         },
         {
           "path": "lineage/profile-voice.md",
-          "digest": "sha256:f4b974605c4bba55bc110bc11261a15fc629bb94b4598173cec68034d083a6fb"
+          "digest": "sha256:941e5e860dee8c8391f1d3bbdd7e792379fdc32f3b12c5f0fb95b399d39fcdf3"
         },
         {
           "path": "lineage/render_profile.py",
-          "digest": "sha256:cbb344f46b5d92f0b5377cffdb45f6ff3e93baed3a49212f0aececfed74436d2"
+          "digest": "sha256:afcaf9bdbd2913b4ba1691c5a9b68ef2af6ea841e599891e77f6000475309b2a"
         }
       ],
       "changed": true
@@ -57,7 +57,7 @@
       "basis": [
         {
           "path": "lineage/lineage.yaml",
-          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+          "digest": "sha256:6169824a06223b219bf7e45c0b688499250243c4adef09209a4def17f86c4cfa"
         },
         {
           "path": "lineage/render.py",
@@ -67,11 +67,11 @@
       "changed": true
     },
     "lineage/WORK-QUEUE.md": {
-      "artifact_digest": "sha256:3c7fbe97ed64bf16806e5d4a2f98f11b9300ffedb07b15a9d0337716c4ae4ad2",
+      "artifact_digest": "sha256:97fd3d20b17f431667799af14537bad765501a3051780b0a7cd1894aecb9302e",
       "basis": [
         {
           "path": "lineage/lineage.yaml",
-          "digest": "sha256:8ad87353ff8b1b9993848f1848e3a5db4b5aa57d2e4801ac0e87c66085f42cf6"
+          "digest": "sha256:6169824a06223b219bf7e45c0b688499250243c4adef09209a4def17f86c4cfa"
         },
         {
           "path": "lineage/HANDOFF.md",

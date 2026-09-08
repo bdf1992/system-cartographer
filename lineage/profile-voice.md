@@ -1,7 +1,7 @@
 # Bdo
 
-I build systems where people and AI can work on the same meaning, inspect how it changed, and see what permits the next action.
+I build tools for people and AI to model work, make changes, and inspect the results.
 
-The current work approaches that problem through several concrete artifacts: governed records and operations, editable spatial models, verifiable program representations, and bounded generative worlds. The repositories carry different experiments and responsibilities. Their names alone do not establish a dependency.
+My current projects explore local-first software, visual modeling, programming tools, and generative worlds. I care about clear permissions, reproducible behavior, and keeping a record that another person can follow.
 
-This page is generated from a public repository lineage. Source checks locate the claims at exact revisions. They do not certify the claims, prove a working integration, or replace each project's own tests.
+These are projects in development. Each repository explains what works, what remains experimental, and how to try it.

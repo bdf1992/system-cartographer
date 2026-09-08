@@ -34,6 +34,12 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(Invalid,'duplicate'):load('schema: lineage/v1\nschema: lineage/v2\n')
     def test_duplicate_node_address(self):self.reject(lambda d:d['nodes']['owl'].update(repo=d['nodes']['ontum']['repo']),'duplicate repo')
     def test_private_node_refused(self):self.reject(lambda d:d['nodes']['owl'].update(visibility='private'),'private repositories')
+    def test_archived_project_cannot_be_featured(self):
+        self.reject(lambda d:d['nodes']['ide'].update(github_archived=True),'featured project must be original')
+    def test_featured_state_cannot_cite_another_repository(self):
+        self.reject(lambda d:d['nodes']['ide']['portfolio'].update(state_url='https://github.com/bdf1992/other/README.md'),'state must link')
+    def test_featured_order_must_be_unambiguous(self):
+        self.reject(lambda d:d['nodes']['ide']['portfolio'].update(order=d['nodes']['schematically']['portfolio']['order']),'distinct portfolio order')
     def test_missing_revision(self):self.reject(lambda d:d['nodes']['owl']['evidence'].pop('revision'),'invalid revision')
     def test_path_traversal(self):self.reject(lambda d:d['nodes']['owl']['evidence'].update(path='../secret'),'unsafe evidence path')
     def test_hypothesis_cannot_be_promoted_by_changing_state(self):
