@@ -1,0 +1,14 @@
+{
+  "include": ["**/CODEOWNERS", "**/OWNERS", "**/MAINTAINERS*", "**/AUTHORS*", "**/SECURITY.md", "**/SUPPORT.md", "**/CONTRIBUTING.md", "**/FUNDING.yml"],
+  "edge_patterns": [
+    {
+      "kind": "owned_by",
+      "include": ["**/CODEOWNERS", "**/OWNERS", "**/MAINTAINERS*"],
+      "regex": "(?<![\\w/])(@[A-Za-z0-9][\\w-]*(?:/[\\w-]+)?)"
+    },
+    {
+      "kind": "contact",
+      "regex": "\\b([\\w.+-]+@[\\w-]+\\.[\\w.-]*[A-Za-z])\\b"
+    }
+  ]
+}

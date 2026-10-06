@@ -1,0 +1,9 @@
+{
+  "include": ["**/*.env.example", "**/.env.example", "**/*.env.sample", "**/.github/workflows/*.yml", "**/.github/workflows/*.yaml", "**/docker-compose*.yml", "**/README.md"],
+  "edge_patterns": [
+    {
+      "kind": "needs_credential",
+      "regex": "\\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:API_KEY|TOKEN|SECRET|PASSWORD|CLIENT_ID|CLIENT_SECRET))\\b"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0",
+  "concerns": [
+    {
+      "id": "asset-documents",
+      "version": "0.1",
+      "type": "artifact",
+      "asset_kind": "documents",
+      "title": "Documents and knowledge",
+      "question": "What written knowledge does the company hold here, and where is the hosted copy?",
+      "scanner": {"kind": "regex-graph", "config": "assets/documents.scan.config.json", "evidence_mode": "node-or-edge"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "asset-data",
+      "version": "0.1",
+      "type": "artifact",
+      "asset_kind": "data",
+      "title": "Data sets and data stores",
+      "question": "What data is kept here, and which stores does it live in?",
+      "scanner": {"kind": "regex-graph", "config": "assets/data.scan.config.json", "evidence_mode": "node-or-edge"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "asset-services",
+      "version": "0.1",
+      "type": "artifact",
+      "asset_kind": "services",
+      "title": "Running services and where they deploy",
+      "question": "What does the company run, and on whose platform?",
+      "scanner": {"kind": "regex-graph", "config": "assets/services.scan.config.json", "evidence_mode": "node-or-edge"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "asset-ownership",
+      "version": "0.1",
+      "type": "relation",
+      "asset_kind": "ownership",
+      "title": "Owners and contacts",
+      "question": "Who owns each asset, and who is asked about it?",
+      "scanner": {"kind": "regex-graph", "config": "assets/ownership.scan.config.json", "evidence_mode": "edge"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "asset-access",
+      "version": "0.1",
+      "type": "dependency",
+      "asset_kind": "access",
+      "title": "Access and credentials, by name",
+      "question": "Which credentials does reaching these assets need? Names only, never values.",
+      "scanner": {"kind": "regex-graph", "config": "assets/access.scan.config.json", "evidence_mode": "edge"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "asset-brand-media",
+      "version": "0.1",
+      "type": "artifact",
+      "asset_kind": "brand and media",
+      "title": "Brand and media",
+      "question": "What logos, images, video, fonts and design files does the company hold here?",
+      "scanner": {"kind": "regex-graph", "config": "assets/brand-media.scan.config.json", "evidence_mode": "node"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    }
+  ]
+}

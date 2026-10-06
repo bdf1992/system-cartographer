@@ -1,5 +1,28 @@
 # Releases
 
+## 2.2.0 (2026-10-06)
+
+A scan ends in a graph and a schematic, and reaches past the agent system to company assets.
+
+- **`scripts/graph_export.py`** (new): a scan directory becomes `graph.json` in graphify's
+  node-link format, `GRAPH_REPORT.md`, and `system.sov`, a Schematically document laid out by a
+  Schematically checkout's `scripts/layout_sov.mjs` when one is passed. A link is `EXTRACTED`
+  when a structural or behavioral finding backs it and `INFERRED` at 0.65 otherwise.
+- **Grouping is measured.** `graph.partitions` holds each grouping's modularity and its place
+  among 1000 seeded shuffles (concern, asset kind, and Louvain when `networkx` is importable).
+  `graph.hyperedges` holds every set of three or more files tied by one shared target.
+- **`references/assets.registry.json`** (new, provisional): six asset concerns (documents, data,
+  services, ownership, access, brand and media) with scan configs under `references/assets/`.
+  The concern schema gains an optional `asset_kind`; a concern without one belongs to the
+  system description.
+- Run on this repository with the overlay: 75 nodes, 31 links, document accepted by
+  Schematically's `validate_sov.mjs`. Run on a 949-file Python repository: 1341 nodes, 1860
+  links, accepted. There the concern grouping scored modularity 0.094 (z 11.0 against shuffles)
+  and the asset-kind grouping 0.002 (z 0.65), because the system description held 1132 of the
+  nodes: on a code-heavy root, asset kind does not explain which files are linked.
+- Not done: the asset concerns have no structural validators, the export is not part of the
+  bundle or its gates, and the run ledger does not seed a task for it.
+
 ## 2.1.1 (2026-07-18)
 
 Public-release cleanup pass, no behavior contract changes, patch bump. Audited the whole skill

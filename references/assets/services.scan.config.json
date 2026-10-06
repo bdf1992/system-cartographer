@@ -1,0 +1,14 @@
+{
+  "include": ["**/Dockerfile*", "**/docker-compose*.yml", "**/docker-compose*.yaml", "**/*.tf", "**/wrangler.toml", "**/wrangler.jsonc", "**/vercel.json", "**/netlify.toml", "**/openapi*.json", "**/openapi*.yaml", "**/.github/workflows/*.yml", "**/.github/workflows/*.yaml", "**/k8s/**/*.yaml", "**/Procfile"],
+  "edge_patterns": [
+    {
+      "kind": "deploys_to",
+      "regex": "\\b(cloudflare|vercel|netlify|heroku|fly\\.io|aws|azure|gcloud|pypi|npmjs|ghcr\\.io|docker\\.io)\\b"
+    },
+    {
+      "kind": "base_image",
+      "include": ["**/Dockerfile*"],
+      "regex": "(?m)^FROM\\s+([\\w./:-]+)"
+    }
+  ]
+}

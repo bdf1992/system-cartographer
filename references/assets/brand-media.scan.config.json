@@ -1,0 +1,4 @@
+{
+  "include": ["**/*.svg", "**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.gif", "**/*.webp", "**/*.ico", "**/*.mp4", "**/*.fig", "**/*.psd", "**/*.ttf", "**/*.otf", "**/*.woff2"],
+  "exclude": ["**/node_modules/**"]
+}
