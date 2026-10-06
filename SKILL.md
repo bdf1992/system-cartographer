@@ -308,6 +308,11 @@ python scripts/graph_export.py --scan-dir <run>/scan --out-dir <run>/graph \
   `--schematically` (or `SCHEMATICALLY_DIR`) that checkout's `scripts/layout_sov.mjs`
   lays it out; without it the document is written unplaced.
 
+- `system-overview.sov` — the same graph at the height a person can read: one card per
+  community with its node count, one wire per pair of communities labelled with the
+  number of links between them and how many are inferred. Open this one first; on a
+  target of more than a few hundred nodes `system.sov` is a dense grid.
+
 A community is a file's primary concern by default. The scan already sorted the target
 by concern, so the export runs no clustering to decide the groups. It does measure
 them. `graph.partitions` and the report give, for each way of grouping the nodes (by
@@ -381,8 +386,9 @@ lists it as oversize.
 **Log data.** `asset-logs` holds `*.log`, rotated logs, `logs/` and `log/` folders,
 `*.out`, `*.err`, `*.trace`, `*.evtx`, and event logs kept as `.jsonl` or `.ndjson`
 under an `events/` folder, with `events` in the name, or named by date. A log larger
-than `--max-file-bytes` is filed but not read, so raise that bound to see what a large
-log says. From each readable log it links the file to
+than `--max-file-bytes` has its last `--max-file-bytes` read, since a log's newest
+lines are its end; the scan notes it as `oversize: last N bytes read`. Any concern can
+ask for this with `"oversize": "tail"` in its scan config. From each readable log it links the file to
 the severities it contains (`ERROR`, `WARNING`, `FATAL`, `CRITICAL`) and to each
 exception or error name it logs. One link per file and name, not one per line: the
 graph says which logs share a failure, not how often it happened. Three or more logs

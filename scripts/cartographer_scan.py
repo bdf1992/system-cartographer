@@ -275,11 +275,39 @@ def collect_files(root, configs, extra_excludes, max_files, follow_symlinks):
     return found, truncated, errors
 
 
-def scan_one(record, compiled, max_file_bytes, cached, boundary_compiled=(), internal_names=None):
+def scan_tail(record, compiled, max_file_bytes, tail_concerns):
+    """An oversize file a concern asked to have its tail read (a log's newest lines are
+    its end): that concern's patterns over the last max_file_bytes, nothing else."""
+    rel = record["rel"]
+    try:
+        with open(record["path"], "rb") as f:
+            f.seek(record["size"] - max_file_bytes)
+            text = f.read(max_file_bytes).decode("utf-8", errors="ignore")
+    except OSError as exc:
+        return rel, [], [], False, str(exc), [], []
+    edges = []
+    for cid in record["concerns"]:
+        if cid not in tail_concerns:
+            continue
+        for kind, rx, includes, excludes in compiled.get(cid, []):
+            if includes and not _matches(rel, includes):
+                continue
+            if excludes and _matches(rel, excludes):
+                continue
+            for match in rx.finditer(text):
+                dst = match.group(1) if match.groups() else match.group(0)
+                edges.append({"concern": cid, "src": rel, "dst": dst.strip(), "kind": kind, "meta": {"tail": True}})
+    return rel, edges, [], False, f"oversize: last {max_file_bytes} bytes read", [], []
+
+
+def scan_one(record, compiled, max_file_bytes, cached, boundary_compiled=(), internal_names=None,
+             tail_concerns=frozenset()):
     rel = record["rel"]
     cache_key = f"{record['size']}:{record['mtime_ns']}"
     if cached and cached.get("stat") == cache_key and cached.get("concerns") == record["concerns"]:
         return rel, cached.get("edges", []), cached.get("boundary_edges", []), True, None, cached.get("findings", []), cached.get("rejected", [])
+    if record["size"] > max_file_bytes and tail_concerns.intersection(record["concerns"]):
+        return scan_tail(record, compiled, max_file_bytes, tail_concerns)
     if not record["concerns"] or record["size"] > max_file_bytes:
         return rel, [], [], False, "oversize" if record["concerns"] else None, [], []
     if not any(compiled.get(cid) for cid in record["concerns"]) and not boundary_compiled:
@@ -580,6 +608,7 @@ def scan(args):
             internal_names.add(top)
 
     compiled = {cid: compile_patterns(config) for cid, config in configs.items()}
+    tail_concerns = frozenset(cid for cid, config in configs.items() if config.get("oversize") == "tail")
     all_edges = []
     all_boundary_edges = []
     all_findings = []
@@ -590,12 +619,12 @@ def scan(args):
     effective_workers = args.workers or (1 if len(records) < 10000 else min(8, (os.cpu_count() or 2) + 2))
     if effective_workers == 1:
         scanned = (
-            (record, scan_one(record, compiled, args.max_file_bytes, cache.get(record["rel"]), boundary_compiled, internal_names))
+            (record, scan_one(record, compiled, args.max_file_bytes, cache.get(record["rel"]), boundary_compiled, internal_names, tail_concerns))
             for record in records
         )
     else:
         pool = concurrent.futures.ThreadPoolExecutor(max_workers=effective_workers)
-        futures = [pool.submit(scan_one, record, compiled, args.max_file_bytes, cache.get(record["rel"]), boundary_compiled, internal_names) for record in records]
+        futures = [pool.submit(scan_one, record, compiled, args.max_file_bytes, cache.get(record["rel"]), boundary_compiled, internal_names, tail_concerns) for record in records]
         scanned = zip(records, (future.result() for future in futures))
     try:
         for record, outcome in scanned:

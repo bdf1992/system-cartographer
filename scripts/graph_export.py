@@ -72,6 +72,8 @@ LABEL_LENGTH = 28
 ELLIPSIS = "…"
 
 _ID_UNSAFE = re.compile(r"[^A-Za-z0-9_-]")
+_BACKSLASHES = re.compile(r"\\{2,}")
+_DRIVE_ROOT = re.compile(r"^[A-Za-z]:[\\/]*[A-Za-z]?$")
 
 
 def read_json(path):
@@ -128,6 +130,18 @@ def module_file(module, nodes):
     return None
 
 
+def clean_pointer(reference):
+    """One spelling for an outside-the-root path, or None when it names nothing.
+
+    A path quoted inside JSON arrives with doubled backslashes and one quoted in a
+    sentence with a trailing full stop; both are the same place. A bare drive root is
+    what is left of a path pattern matching an escape sequence, and points nowhere."""
+    path = _BACKSLASHES.sub(r"\\", reference).rstrip(".")
+    if len(path) > 3:
+        path = path.rstrip("\\/")
+    return None if _DRIVE_ROOT.match(path) else path
+
+
 def best_stages(graphs):
     """(concern, file) -> strongest evidence stage, from each concern's findings."""
     best = {}
@@ -178,7 +192,7 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
     stages = best_stages(graphs)
     primary = primary_concerns(graphs, stages, asset_kinds)
     nodes, links = {}, []
-    skipped = {"stdlib_imports": 0, "markers": 0, "long_targets": 0}
+    skipped = {"stdlib_imports": 0, "markers": 0, "long_targets": 0, "junk_pointers": 0, "merged_pointers": 0}
 
     for concern, graph in graphs.items():
         for node in graph.get("nodes") or []:
@@ -229,17 +243,27 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
                 "confidence_score": score, "source_file": src, "concern": concern,
             })
 
+    pointer_ids, pointed = {}, set()
     for pointer in patterns.get("boundary_pointers") or []:
-        pid = f"boundary:{pointer.get('id')}"
-        nodes[pid] = {
-            "id": pid, "label": str(pointer.get("reference")), "file_type": "boundary", "source_file": "",
-            "kind": "boundary", "source_class": pointer.get("source_class"), "concerns": [],
-            "evidence_stage": None, "primary_concern": BOUNDARY_COMMUNITY,
-            "relation": pointer.get("relation"), "exists": pointer.get("exists"),
-            "disposition": pointer.get("disposition"),
-        }
+        path = clean_pointer(str(pointer.get("reference")))
+        if path is None:
+            skipped["junk_pointers"] += 1
+            continue
+        pid = pointer_ids.get(path.lower())
+        if pid is None:
+            pid = pointer_ids[path.lower()] = f"boundary:{pointer.get('id')}"
+            nodes[pid] = {
+                "id": pid, "label": path, "file_type": "boundary", "source_file": "",
+                "kind": "boundary", "source_class": pointer.get("source_class"), "concerns": [],
+                "evidence_stage": None, "primary_concern": BOUNDARY_COMMUNITY,
+                "relation": pointer.get("relation"), "exists": pointer.get("exists"),
+                "disposition": pointer.get("disposition"),
+            }
+        else:
+            skipped["merged_pointers"] += 1
         for src in pointer.get("referenced_from") or []:
-            if src in nodes:
+            if src in nodes and (src, pid) not in pointed:
+                pointed.add((src, pid))
                 links.append({
                     "source": src, "target": pid, "relation": "points_outside_root",
                     "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": src,
@@ -388,7 +412,9 @@ def render_report(graph, target):
             f"- {len(links)} links: {basis['EXTRACTED']} EXTRACTED (a structural or behavioral finding backs it), "
             f"{basis['INFERRED']} INFERRED (a pattern match only)",
             f"- left out: {skipped['stdlib_imports']} standard-library imports, {skipped['markers']} markers, "
-            f"{skipped['long_targets']} captured values too long to be a target", ""]
+            f"{skipped['long_targets']} captured values too long to be a target, "
+            f"{skipped['junk_pointers']} outside-the-root pointers that name nothing "
+            f"({skipped['merged_pointers']} more merged as second spellings of one path)", ""]
     out += ["## Most connected", ""]
     for node_id in sorted(degree, key=lambda k: (-degree[k], k))[:10]:
         if degree[node_id]:
@@ -489,6 +515,53 @@ def graph_to_sov(graph, title):
     }
 
 
+def graph_to_overview(graph, title):
+    """The same graph at the height a person can read: one card per community, one wire
+    per pair of communities, labelled with how many links run between them. Pure."""
+    labels = graph["graph"]["community_labels"]
+    by_id = {node["id"]: node for node in graph["nodes"]}
+    sizes, files, evidenced, inside, between = {}, {}, {}, {}, {}
+    for node in graph["nodes"]:
+        c = node["community"]
+        sizes[c] = sizes.get(c, 0) + 1
+        if node["kind"] == "file":
+            files[c] = files.get(c, 0) + 1
+            evidenced[c] = evidenced.get(c, 0) + (node["evidence_stage"] in EVIDENCED)
+    for link in graph["links"]:
+        a, b = by_id[link["source"]]["community"], by_id[link["target"]]["community"]
+        if a == b:
+            inside[a] = inside.get(a, 0) + 1
+            continue
+        row = between.setdefault((a, b), {"EXTRACTED": 0, "INFERRED": 0})
+        row[link["confidence"]] += 1
+    cards = []
+    for key in sorted(labels, key=int):
+        c = int(key)
+        if not sizes.get(c):
+            continue
+        subtitle = f"{inside.get(c, 0)} links inside"
+        if files.get(c):
+            subtitle += f", {evidenced[c]} of {files[c]} files evidenced"
+        # The count sits in the label: a subtitle is hidden when the card is drawn small.
+        cards.append({"id": f"community-{key}", "symbolId": "act" if evidenced.get(c) else "hold",
+                      "config": {"label": f"{labels[key]} ({sizes[c]})", "subtitle": subtitle}})
+    wires = []
+    for (a, b), row in sorted(between.items()):
+        total = row["EXTRACTED"] + row["INFERRED"]
+        label = f"{total} links" if total != 1 else "1 link"
+        if row["INFERRED"]:
+            label += f", {row['INFERRED']} inferred"
+        wires.append({
+            "id": f"w-community-{a}-community-{b}", "a": f"community-{a}", "aSide": "out",
+            "b": f"community-{b}", "bSide": "in", "canvasId": CANVAS,
+            "config": {"label": label, "basis": "EXTRACTED" if row["EXTRACTED"] >= row["INFERRED"] else "INFERRED"},
+        })
+    return {
+        "schema": SCHEMA, "id": "system-cartographer-overview", "revision": 0,
+        "meta": {"title": f"{title}: overview"}, "references": [], "components": cards, "wires": wires,
+    }
+
+
 def write_sov(document, path, schematically_dir=None, node="node"):
     """Write the document; lay it out first when a Schematically checkout is given."""
     text = json.dumps(document, indent=1, ensure_ascii=False) + "\n"
@@ -551,11 +624,14 @@ def main():
     write_text(report_path, render_report(graph, title))
     document = graph_to_sov(graph, title)
     laid_out = write_sov(document, sov_path, args.schematically)
+    overview_path = os.path.join(args.out_dir, "system-overview.sov")
+    write_sov(graph_to_overview(graph, title), overview_path, args.schematically)
     basis = {"EXTRACTED": 0, "INFERRED": 0}
     for link in graph["links"]:
         basis[link["confidence"]] += 1
     json.dump({
-        "graph": graph_path, "report": report_path, "sov": sov_path, "laid_out": laid_out,
+        "graph": graph_path, "report": report_path, "sov": sov_path, "overview": overview_path,
+        "laid_out": laid_out,
         "nodes": len(graph["nodes"]), "links": len(graph["links"]), "basis": basis,
         "communities": len(graph["graph"]["community_labels"]), "grouped_by": args.group_by,
         "hyperedges": len(graph["graph"]["hyperedges"]), "partitions": graph["graph"]["partitions"],

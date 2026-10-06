@@ -1,5 +1,22 @@
 # Releases
 
+## 2.5.0 (2026-10-06)
+
+A map a person can read, from the same 4,952-file run.
+
+- **`system-overview.sov`** (new, written beside `system.sov`): one card per community with
+  its node count, one wire per pair of communities labelled with its link count and how many
+  are inferred. On that root: 9 cards and 7 wires, where `system.sov` has 5,341 components.
+  Rendered with Schematically's `export_svg.py` and read as a picture before release; the
+  counts moved from the subtitle into the label because a small card hides its subtitle.
+- **Large logs are read from the end.** A concern whose scan config says `"oversize": "tail"`
+  has the last `--max-file-bytes` of an oversize file read with its own patterns; `asset-logs`
+  sets it. On that root the log data group went from 87 nodes to 97.
+- **Outside-the-root pointers are cleaned in the export.** A bare drive root is dropped and
+  JSON-escaped or full-stopped spellings of one path are merged: 50 pointers became 47.
+- Not done: the overview does not link each card to a document of its own members, so going
+  from a group to its files still means opening `system.sov` or `graph.json`.
+
 ## 2.4.1 (2026-10-06)
 
 Four defects from the first real run, on a 4,952-file root that is mostly JSON records.
