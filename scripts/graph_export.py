@@ -22,8 +22,10 @@ How the scan's own terms map onto the graph's:
               (an imported package, a named external system, a repository), and every
               boundary pointer.
   community   a file's primary concern: the concern holding its strongest evidence
-              stage, and among equals the concern with the fewest files. The scan
-              already sorted the target by concern, so no clustering is run.
+              stage. A file with no evidence anywhere goes to an asset concern before
+              a system-description one, and among equals to the concern with the
+              fewest files. The scan already sorted the target by concern, so no
+              clustering is run.
   basis       a link is EXTRACTED when a structural or behavioral finding backs it (a
               finding naming the same target, or failing that any such finding for the
               source file in the link's concern). A link resting on a pattern match
@@ -64,6 +66,7 @@ GROUPINGS = ("concern", "asset")
 NULL_DRAWS = 1000
 HYPEREDGE_MIN = 3
 REPORT_ROWS = 15
+SOURCE_ROWS = 5
 CODE_EXTENSIONS = frozenset({".py", ".js", ".mjs", ".ts", ".tsx", ".sh", ".ps1", ".go", ".rs", ".cs", ".java", ".rb"})
 LABEL_LENGTH = 28
 ELLIPSIS = "…"
@@ -137,17 +140,24 @@ def best_stages(graphs):
     return best
 
 
-def primary_concerns(graphs, stages):
-    """file -> the concern that owns it as a community."""
+def primary_concerns(graphs, stages, asset_kinds=None):
+    """file -> the concern that owns it as a community.
+
+    Evidence decides first. A file no concern has evidence for goes to an asset concern
+    before a system-description one: a filename pattern alone does not make a file part
+    of the system description. Among equals the concern with the fewest files wins."""
+    asset_kinds = asset_kinds or {}
     sizes = {concern: len(graph.get("nodes") or []) for concern, graph in graphs.items()}
     holders = {}
     for concern, graph in graphs.items():
         for node in graph.get("nodes") or []:
             holders.setdefault(node["id"], []).append(concern)
-    return {
-        rel: min(concerns, key=lambda c: (-STAGE_RANK[stages.get((c, rel), "candidate")], sizes[c], c))
-        for rel, concerns in holders.items()
-    }
+
+    def rank(concern, rel):
+        stage = STAGE_RANK[stages.get((concern, rel), "candidate")]
+        return -stage, 0 if stage or concern in asset_kinds else 1, sizes[concern], concern
+
+    return {rel: min(concerns, key=lambda c: rank(c, rel)) for rel, concerns in holders.items()}
 
 
 def link_basis(concern, edge, graph, stages):
@@ -166,7 +176,7 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
     """The node-link graph for a loaded scan. Pure: no I/O."""
     asset_kinds = asset_kinds or {}
     stages = best_stages(graphs)
-    primary = primary_concerns(graphs, stages)
+    primary = primary_concerns(graphs, stages, asset_kinds)
     nodes, links = {}, []
     skipped = {"stdlib_imports": 0, "markers": 0, "long_targets": 0}
 
@@ -235,6 +245,15 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
                     "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": src,
                     "concern": BOUNDARY_COMMUNITY,
                 })
+
+    # A file other files demonstrably depend on is part of the system even when the scan
+    # found nothing inside it (an empty __init__.py): file it with the link that proves it.
+    for link in links:
+        target = nodes[link["target"]]
+        if (link["confidence"] == "EXTRACTED" and link["concern"] != BOUNDARY_COMMUNITY
+                and target["kind"] == "file" and target["evidence_stage"] == "candidate"
+                and target["primary_concern"] in asset_kinds):
+            target["primary_concern"] = link["concern"]
 
     for node in nodes.values():
         node["concerns"] = sorted(node["concerns"])
@@ -414,8 +433,11 @@ def render_report(graph, target):
         out += ["", "## Outside the root", ""]
         for node in boundary:
             sources = sorted(l["source"] for l in links if l["target"] == node["id"])
+            named = ", ".join(sources[:SOURCE_ROWS]) or "no scanned file"
+            if len(sources) > SOURCE_ROWS:
+                named += f" and {len(sources) - SOURCE_ROWS} more"
             out.append(f"- `{node['label']}` ({node.get('relation')}, disposition {node.get('disposition')}): "
-                       f"named by {', '.join(sources) or 'no scanned file'}")
+                       f"named by {named}")
     out.append("")
     return "\n".join(out)
 

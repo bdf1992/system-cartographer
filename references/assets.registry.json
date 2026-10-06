@@ -67,6 +67,19 @@
       "status": "provisional"
     },
     {
+      "id": "asset-records",
+      "version": "0.1",
+      "type": "artifact",
+      "asset_kind": "records",
+      "title": "Records kept one per file",
+      "question": "What does the company keep as structured records here, and what does each kind of record stand for?",
+      "scanner": {"kind": "regex-graph", "config": "assets/records.scan.config.json", "evidence_mode": "node"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
       "id": "asset-logs",
       "version": "0.1",
       "type": "telemetry",

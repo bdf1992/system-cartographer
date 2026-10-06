@@ -1,0 +1,4 @@
+{
+  "include": ["**/*.json", "**/*.yaml", "**/*.yml", "**/*.toml", "**/*.xml"],
+  "exclude": ["**/package.json", "**/package-lock.json", "**/tsconfig*.json", "**/*.config.json", "**/pyproject.toml", "**/.github/**", "**/.vscode/**", "**/.claude/**", "**/docker-compose*.yml", "**/docker-compose*.yaml"]
+}

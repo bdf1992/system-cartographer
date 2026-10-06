@@ -1,5 +1,28 @@
 # Releases
 
+## 2.4.1 (2026-10-06)
+
+Four defects from the first real run, on a 4,952-file root that is mostly JSON records.
+
+- **Filing.** 3,448 record files had been filed under `integrations`, because that concern
+  matches any `.json` file and the smallest matching concern won. Now a file with no evidence
+  goes to an asset concern before a system-description one, and a file other files provably
+  import is filed with that link. New `asset-records` kind for structured records kept one per
+  file. On that root: 3,714 nodes under `records`, the system description down from about
+  5,000 nodes to 1,045, and the asset-kind grouping from z 0.69 to z 5.54 against shuffles.
+- **Log data.** `asset-logs` now matches event logs kept as `.jsonl` or `.ndjson` under an
+  `events/` folder, with `events` in the name, or named by date. The root's 29 dated event
+  logs moved from `data` to `log data`.
+- **Report.** A boundary pointer lists five referencing files and a count of the rest; one
+  pointer had listed about 60.
+- **Audit seed.** No claim is opened for a concern with nothing past a pattern match; those
+  concerns are named in one line instead. On that root: 8 claims where there had been 15.
+- Rerun after the fixes: this repository (81 nodes) and a 958-file Python repository
+  (1,350 nodes) still export and validate; the 38-command audit walk still passes.
+- Not done: a log over `--max-file-bytes` is filed but not read, so the large event logs
+  contributed no severity links. Junk boundary pointers such as `C:\\` and JSON-escaped
+  duplicates of one path come from the scanner's path patterns and are unchanged.
+
 ## 2.4.0 (2026-10-06)
 
 A run is an audit: every claim walks eleven recorded stages.

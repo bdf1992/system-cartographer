@@ -17,7 +17,7 @@ A scan also exports as a graph in graphify's format, a report on it, and a Schem
 document (`scripts/graph_export.py`), with every link marked as backed by evidence or by a
 pattern match only, and each way of grouping the nodes tested against shuffled groupings. With
 the asset overlay (`references/assets.registry.json`) the same run maps a company's documents,
-data, services, owners, access, media and log data, with the system description as one asset
+data, records, services, owners, access, media and log data, with the system description as one asset
 kind among them.
 
 The target does not have to be a repository. Pointed at a shared drive or any folder, the

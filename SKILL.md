@@ -255,7 +255,7 @@ can sit at `conflicts` while the run has moved on.
 ```bash
 python scripts/audit.py init --run "$RUN" --actor <you>
 python scripts/audit.py intake --run "$RUN" --actor <you> --source builder --concern <concern> --statement "..."
-python scripts/audit.py seed --run "$RUN" --actor <you> --scan-dir "$RUN/scan"   # one claim per concern
+python scripts/audit.py seed --run "$RUN" --actor <you> --scan-dir "$RUN/scan"   # one claim per evidenced concern
 python scripts/audit.py record <claim> <stage> --run "$RUN" --actor <you> ...
 python scripts/audit.py validate <claim> --run "$RUN" --actor <someone else>
 python scripts/audit.py status --run "$RUN"
@@ -342,6 +342,7 @@ python scripts/graph_export.py --scan-dir <run>/scan --out-dir <run>/graph --gro
 | ownership | `asset-ownership` | Who owns each asset; who is asked about it |
 | access | `asset-access` | Which credentials reaching these assets needs, by name, never by value |
 | brand and media | `asset-brand-media` | What logos, images, video, fonts and design files are held |
+| records | `asset-records` | What is kept as structured records, one per file, and what each kind of record stands for |
 | log data | `asset-logs` | What the company records about its own running, where it is kept, what it says went wrong |
 | files | `asset-files` | What else is on this file system, and whether anyone knows what it is for |
 | system description | the twelve concerns | The agent, skill and workflow system itself |
@@ -349,6 +350,15 @@ python scripts/graph_export.py --scan-dir <run>/scan --out-dir <run>/graph --gro
 A concern names its kind with `asset_kind` in the registry; a concern that names none
 belongs to the system description. With `--group-by asset` each kind is one group in
 the graph and the schematic, and the system description is one group among them.
+
+**How a file is filed.** Evidence decides first: a file with a structural or behavioral
+finding belongs to the concern that found it. A file with no evidence anywhere goes to
+an asset concern before a system-description one, because a filename pattern alone does
+not make a file part of the system description; among asset concerns the one matching
+the fewest files wins, so the most specific kind holds it. One exception: a file that
+other files provably depend on (an empty `__init__.py` that sixty modules import) is
+filed with the link that proves it. On a root that is mostly records, this is what
+keeps thousands of JSON files out of `integrations`.
 
 **A file system as the target.** The root does not have to be a repository: a shared
 drive, a home folder or an export of one works the same way. `asset-files` matches
@@ -369,7 +379,10 @@ A file over `--max-file-bytes` is still a node; its content is not read, and the
 lists it as oversize.
 
 **Log data.** `asset-logs` holds `*.log`, rotated logs, `logs/` and `log/` folders,
-`*.out`, `*.err`, `*.trace` and `*.evtx`. From each readable log it links the file to
+`*.out`, `*.err`, `*.trace`, `*.evtx`, and event logs kept as `.jsonl` or `.ndjson`
+under an `events/` folder, with `events` in the name, or named by date. A log larger
+than `--max-file-bytes` is filed but not read, so raise that bound to see what a large
+log says. From each readable log it links the file to
 the severities it contains (`ERROR`, `WARNING`, `FATAL`, `CRITICAL`) and to each
 exception or error name it logs. One link per file and name, not one per line: the
 graph says which logs share a failure, not how often it happened. Three or more logs
@@ -377,7 +390,7 @@ naming the same exception appear in `graph.hyperedges`, which is the quickest re
 a failure that crosses components. Counting occurrences over time is analysis the scan
 does not do; for that, read the logs it points at.
 
-The eight asset concerns are provisional: they have no structural validator yet, so every
+The nine asset concerns are provisional: they have no structural validator yet, so every
 file they hold stays at `candidate` and every link they add is `INFERRED`. Elicit and
 reconcile them like any other slot. Add a kind with one registry entry and one scan
 config; no script changes.
