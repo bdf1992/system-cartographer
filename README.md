@@ -33,7 +33,8 @@ python scripts/cartographer_scan.py --target <folder> --environment run/environm
 python scripts/graph_export.py --scan-dir run/scan --out-dir run/graph --group-by asset
 ```
 
-That writes `run/graph/graph.json`, `GRAPH_REPORT.md` and `system.sov`. Add
+That writes `run/graph/graph.json`, `GRAPH_REPORT.md`, `system.sov` and
+`system-overview.sov`, one card per group, which is the one to open first. Add
 `--schematically <checkout>` to the last command to have the document laid out.
 
 ## The audit
