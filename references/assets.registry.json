@@ -67,6 +67,32 @@
       "status": "provisional"
     },
     {
+      "id": "asset-logs",
+      "version": "0.1",
+      "type": "telemetry",
+      "asset_kind": "log data",
+      "title": "Log data",
+      "question": "What does the company record about its own running, where is it kept, and what does it say went wrong?",
+      "scanner": {"kind": "regex-graph", "config": "assets/logs.scan.config.json", "evidence_mode": "node-or-edge"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
+      "id": "asset-files",
+      "version": "0.1",
+      "type": "artifact",
+      "asset_kind": "files",
+      "title": "Files nothing else accounts for",
+      "question": "What else is on this file system, and does anyone know what it is for?",
+      "scanner": {"kind": "regex-graph", "config": "assets/files.scan.config.json", "evidence_mode": "node"},
+      "requires": ["filesystem.read"],
+      "produces": ["evidence.graph"],
+      "depends_on": [],
+      "status": "provisional"
+    },
+    {
       "id": "asset-brand-media",
       "version": "0.1",
       "type": "artifact",

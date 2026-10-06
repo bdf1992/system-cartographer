@@ -17,8 +17,24 @@ A scan also exports as a graph in graphify's format, a report on it, and a Schem
 document (`scripts/graph_export.py`), with every link marked as backed by evidence or by a
 pattern match only, and each way of grouping the nodes tested against shuffled groupings. With
 the asset overlay (`references/assets.registry.json`) the same run maps a company's documents,
-data, services, owners, access and media, with the system description as one asset kind among
-them.
+data, services, owners, access, media and log data, with the system description as one asset
+kind among them.
+
+The target does not have to be a repository. Pointed at a shared drive or any folder, the
+overlay's `files` kind holds every file no other concern accounts for, so the map covers the
+whole file system and shows what nobody has explained. Log files are linked to the severities
+and the exception names they contain, so logs that record the same failure sit together.
+
+```bash
+python scripts/environment_probe.py --root <folder> --out run/environment.json
+python scripts/cartographer_scan.py --target <folder> --environment run/environment.json \
+  --registry references/concerns.registry.json --registry references/assets.registry.json \
+  --no-boundary-scan --out-dir run/scan --cache run/scan-cache.json --compact
+python scripts/graph_export.py --scan-dir run/scan --out-dir run/graph --group-by asset
+```
+
+That writes `run/graph/graph.json`, `GRAPH_REPORT.md` and `system.sov`. Add
+`--schematically <checkout>` to the last command to have the document laid out.
 
 Full documentation: [SKILL.md](SKILL.md). Version history (every entry earned by actually
 running the tool against a real target, not by reading the code): [RELEASES.md](RELEASES.md).
@@ -39,6 +55,8 @@ ported, or handed off (see `SKILL.md`'s frontmatter `description` for trigger ph
 - `SKILL.md` — the skill definition Claude Code loads.
 - `scripts/` — the deterministic scanner, structural validators, export planner, bundler, save-state
   manager, and the onboarding-card renderer.
+- `scripts/graph_export.py` — a scan as a graphify-format graph, a report and a Schematically document.
+- `references/assets.registry.json`, `references/assets/` — the asset overlay and its scan configs.
 - `references/` — the concern registry, per-concern scan configs and card templates, and the
   protocol docs (environment negotiation, boundary pointers, slot-fill rules, save states).
 - `agents/openai.yaml` — a non-Claude host binding.
