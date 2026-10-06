@@ -1,5 +1,27 @@
 # Releases
 
+## 2.4.0 (2026-10-06)
+
+A run is an audit: every claim walks eleven recorded stages.
+
+- **`scripts/audit.py`** (new): one record per claim in `audit.json`, moved through intake,
+  findings, evidence, conflicts, organization, refutation, judgement, verdict, qualification,
+  settle and validation; `AUDIT.md` is regenerated from it. A stage is refused while the one
+  before it is empty; a judgement needs a refutation attempt; `confirmed` needs `EXTRACTED`
+  evidence and no defeating refutation. Recording into an earlier stage moves later entries to
+  the claim's history and raises its round.
+- **Validation is the process run again.** `validate` opens a second record of the same claim
+  for a different actor. Matching verdicts validate the first; a different verdict is recorded
+  on it as a conflict and reopens it.
+- `seed` opens one claim per concern from a scan directory, with its findings and evidence
+  attached. The verdict words are the existing delta words; nothing new is named.
+- Walked by script: 38 commands on one claim and its validation, 12 expected refusals all
+  fired, the disagreeing validation reopened the claim at round 3; `seed` on a 949-file scan
+  opened 15 claims.
+- Not done: the run ledger seeds no audit task and `state.py` gates nothing on the audit, so a
+  bundle can still be shared with claims unsettled. No claim has been walked on a real target
+  with its owner yet.
+
 ## 2.3.0 (2026-10-06)
 
 The asset map covers a whole file system and its log data.

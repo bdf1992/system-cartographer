@@ -36,6 +36,22 @@ python scripts/graph_export.py --scan-dir run/scan --out-dir run/graph --group-b
 That writes `run/graph/graph.json`, `GRAPH_REPORT.md` and `system.sov`. Add
 `--schematically <checkout>` to the last command to have the document laid out.
 
+## The audit
+
+Every claim the run makes about the target, whether the builder said it or the scan supports
+it, walks eleven recorded stages: intake, findings, evidence, conflicts, organization,
+refutation, judgement, verdict, qualification, settle, validation. `scripts/audit.py` keeps the
+record and holds the order: no judgement before an attempt to refute the claim, no `confirmed`
+verdict without evidence a check backs, no settlement before the verdict is qualified.
+Validation is a second record of the same claim, walked through the same stages by a different
+actor; a different verdict reopens the first claim instead of overruling it.
+
+```bash
+python scripts/audit.py init --run run --actor <you>
+python scripts/audit.py seed --run run --actor <you> --scan-dir run/scan
+python scripts/audit.py status --run run
+```
+
 Full documentation: [SKILL.md](SKILL.md). Version history (every entry earned by actually
 running the tool against a real target, not by reading the code): [RELEASES.md](RELEASES.md).
 
@@ -55,6 +71,7 @@ ported, or handed off (see `SKILL.md`'s frontmatter `description` for trigger ph
 - `SKILL.md` — the skill definition Claude Code loads.
 - `scripts/` — the deterministic scanner, structural validators, export planner, bundler, save-state
   manager, and the onboarding-card renderer.
+- `scripts/audit.py` — the claim ledger: eleven stages, refusals, validation by a second actor.
 - `scripts/graph_export.py` — a scan as a graphify-format graph, a report and a Schematically document.
 - `references/assets.registry.json`, `references/assets/` — the asset overlay and its scan configs.
 - `references/` — the concern registry, per-concern scan configs and card templates, and the
