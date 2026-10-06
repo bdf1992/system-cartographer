@@ -215,7 +215,7 @@ def cmd_intake(run, actor, statement, concern, source):
 def cmd_seed(run, actor, scan_dir):
     """One claim per concern the scan found files for, with its findings and evidence attached."""
     audit = _load(run)
-    made = []
+    made, unevidenced = [], []
     for name in sorted(os.listdir(scan_dir)):
         if not name.endswith(".json"):
             continue
@@ -225,20 +225,22 @@ def cmd_seed(run, actor, scan_dir):
             continue
         concern, findings = graph["concern"], graph.get("findings") or []
         strong = [f for f in findings if f.get("evidence_stage") in EVIDENCED]
+        if not strong:
+            # Nothing past a pattern match: there is no statement here a scan could support.
+            unevidenced.append(f"{concern} ({len(graph['nodes'])} files)")
+            continue
         files = sorted({f["file"] for f in strong})
         claim = _new_claim(audit, f"{len(files)} of {len(graph['nodes'])} files matched for {concern} "
                                   "carry structural or behavioral evidence", concern, "scan", actor)
         _record(audit, claim, "findings", actor, {"ref": f"scan/{name}", "text": f"{len(graph['nodes'])} files matched"})
-        if strong:
-            for rel in files:
-                signal = next(f["signal"] for f in strong if f["file"] == rel)
-                _record(audit, claim, "evidence", actor, {"ref": rel, "basis": "EXTRACTED", "text": signal})
-        else:
-            _record(audit, claim, "evidence", actor, {"text": "the scan promoted no file past a pattern match"},
-                    none=True)
+        for rel in files:
+            signal = next(f["signal"] for f in strong if f["file"] == rel)
+            _record(audit, claim, "evidence", actor, {"ref": rel, "basis": "EXTRACTED", "text": signal})
         made.append(claim["id"])
     _save(run, audit)
     print(f"seeded {len(made)} claims from {scan_dir}: {', '.join(made)} -- next for each: conflicts")
+    if unevidenced:
+        print(f"no claim opened, pattern matches only: {', '.join(unevidenced)}")
 
 
 def cmd_record(run, claim_id, stage, actor, fields, none):

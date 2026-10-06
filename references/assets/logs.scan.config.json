@@ -1,5 +1,5 @@
 {
-  "include": ["**/*.log", "**/*.log.*", "**/logs/**", "**/log/**", "**/*.out", "**/*.err", "**/*.trace", "**/*.evtx"],
+  "include": ["**/*.log", "**/*.log.*", "**/logs/**", "**/log/**", "**/*.out", "**/*.err", "**/*.trace", "**/*.evtx", "**/events/**/*.jsonl", "**/events/**/*.ndjson", "**/*events*.jsonl", "**/*events*.ndjson", "**/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.jsonl", "**/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.ndjson"],
   "edge_patterns": [
     {
       "kind": "log_level",
