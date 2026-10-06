@@ -1,0 +1,15 @@
+{
+  "include": ["**/*.log", "**/*.log.*", "**/logs/**", "**/log/**", "**/*.out", "**/*.err", "**/*.trace", "**/*.evtx"],
+  "edge_patterns": [
+    {
+      "kind": "log_level",
+      "exclude": ["**/*.evtx"],
+      "regex": "\\b(FATAL|CRITICAL|ERROR|WARN(?:ING)?)\\b"
+    },
+    {
+      "kind": "logged_exception",
+      "exclude": ["**/*.evtx"],
+      "regex": "\\b([A-Z][A-Za-z]+(?:Error|Exception))\\b"
+    }
+  ]
+}

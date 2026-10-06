@@ -1,5 +1,24 @@
 # Releases
 
+## 2.3.0 (2026-10-06)
+
+The asset map covers a whole file system and its log data.
+
+- **`asset-files`** (new, provisional): matches every file. A file belongs to the most specific
+  concern that holds it, so the `files` kind is what no other concern accounts for.
+- **`asset-logs`** (new, provisional): log files, linked to the severities and the exception
+  names they contain, one link per file and name.
+- `SKILL.md` and `README.md` describe a file system as the target, the bounds to pass on a
+  large root, and what the log links do and do not say. The skill's trigger description names
+  asset mapping and the graph export.
+- Run on a folder that is not a repository, holding three small logs: 40 nodes, 27 links, the
+  logs grouped as `log data` with `ERROR`, `WARNING` and `PermissionError` each shared by all
+  three; document accepted by Schematically's `validate_sov.mjs`. There the asset-kind grouping
+  scored modularity 0.444 (z 8.0 against shuffles), against 0.002 on the code-heavy repository
+  in 2.2.0.
+- Not done: no run yet on a drive of more than a few dozen files, so the bounds in `SKILL.md`
+  are the scan's existing flags, not measured settings.
+
 ## 2.2.0 (2026-10-06)
 
 A scan ends in a graph and a schematic, and reaches past the agent system to company assets.

@@ -1,6 +1,6 @@
 ---
 name: system-cartographer
-description: Reverse-engineer and formally describe a tacit Agent, Skill, Workflow, or AI-native system across GPT, Claude, Grok, Ollama, custom harnesses, IDE agents, and repository environments. Negotiate the host's model, runtime, tools, authority, evidence roots, and constraints; elicit the builder's model before scanning; run a bounded registry-driven scan; reconcile belief against evidence; and produce typed cards, a pattern map, deltas, and tending potential. Use for requests to document, formalize, audit, port, hand off, compare, or understand a manually built system, including “capture how this actually works,” “what is my agent doing,” “make this portable across models,” and “help me understand our patterns.”
+description: Reverse-engineer and formally describe a tacit Agent, Skill, Workflow, or AI-native system across GPT, Claude, Grok, Ollama, custom harnesses, IDE agents, and repository environments. Negotiate the host's model, runtime, tools, authority, evidence roots, and constraints; elicit the builder's model before scanning; run a bounded registry-driven scan; reconcile belief against evidence; and produce typed cards, a pattern map, deltas, and tending potential. Use for requests to document, formalize, audit, port, hand off, compare, or understand a manually built system, including “capture how this actually works,” “what is my agent doing,” “make this portable across models,” and “help me understand our patterns.” Also use to map the assets a company can reach on a file system or shared drive (documents, data, services, owners, access, log data, media, and every file nothing else accounts for), with the system description as one asset among them, and to export any scan as a graph and a Schematically document, including “map what is on this drive,” “what assets do we have,” “what do our logs say,” and “draw this system.”
 ---
 
 # System Cartographer
@@ -285,12 +285,42 @@ python scripts/graph_export.py --scan-dir <run>/scan --out-dir <run>/graph --gro
 | ownership | `asset-ownership` | Who owns each asset; who is asked about it |
 | access | `asset-access` | Which credentials reaching these assets needs, by name, never by value |
 | brand and media | `asset-brand-media` | What logos, images, video, fonts and design files are held |
+| log data | `asset-logs` | What the company records about its own running, where it is kept, what it says went wrong |
+| files | `asset-files` | What else is on this file system, and whether anyone knows what it is for |
 | system description | the twelve concerns | The agent, skill and workflow system itself |
 
 A concern names its kind with `asset_kind` in the registry; a concern that names none
 belongs to the system description. With `--group-by asset` each kind is one group in
-the graph and the schematic, and the system description is one group among them. The
-six asset concerns are provisional: they have no structural validator yet, so every
+the graph and the schematic, and the system description is one group among them.
+
+**A file system as the target.** The root does not have to be a repository: a shared
+drive, a home folder or an export of one works the same way. `asset-files` matches
+every file, and a file belongs to the most specific concern that holds it, so the
+`files` group is exactly what no other concern accounts for. That remainder is the
+finding: ask the owner about it, do not classify it for them. On a large root, bound
+the walk and skip the out-of-root pointer pass, which otherwise reads every matched
+file:
+
+```bash
+python scripts/cartographer_scan.py --target <drive or folder> --environment <run>/environment.json \
+  --registry references/concerns.registry.json --registry references/assets.registry.json \
+  --no-boundary-scan --max-files 20000 --max-file-bytes 1048576 --exclude "**/node_modules/**" \
+  --out-dir <run>/scan --cache <run>/scan-cache.json --compact
+```
+
+A file over `--max-file-bytes` is still a node; its content is not read, and the scan
+lists it as oversize.
+
+**Log data.** `asset-logs` holds `*.log`, rotated logs, `logs/` and `log/` folders,
+`*.out`, `*.err`, `*.trace` and `*.evtx`. From each readable log it links the file to
+the severities it contains (`ERROR`, `WARNING`, `FATAL`, `CRITICAL`) and to each
+exception or error name it logs. One link per file and name, not one per line: the
+graph says which logs share a failure, not how often it happened. Three or more logs
+naming the same exception appear in `graph.hyperedges`, which is the quickest read of
+a failure that crosses components. Counting occurrences over time is analysis the scan
+does not do; for that, read the logs it points at.
+
+The eight asset concerns are provisional: they have no structural validator yet, so every
 file they hold stays at `candidate` and every link they add is `INFERRED`. Elicit and
 reconcile them like any other slot. Add a kind with one registry entry and one scan
 config; no script changes.
