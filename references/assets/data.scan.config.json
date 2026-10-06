@@ -1,0 +1,10 @@
+{
+  "include": ["**/*.csv", "**/*.tsv", "**/*.xlsx", "**/*.parquet", "**/*.sqlite", "**/*.db", "**/*.sql", "**/*.ndjson", "**/*.jsonl", "**/*.env.example", "**/docker-compose*.yml", "**/docker-compose*.yaml"],
+  "edge_patterns": [
+    {
+      "kind": "data_store",
+      "include": ["**/*.env.example", "**/docker-compose*.yml", "**/docker-compose*.yaml", "**/*.sql"],
+      "regex": "\\b(postgres(?:ql)?|mysql|mongodb(?:\\+srv)?|redis|s3|gs|bigquery|snowflake|sqlite)://"
+    }
+  ]
+}

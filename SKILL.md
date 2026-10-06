@@ -228,6 +228,73 @@ separate from evidence, always included, because how the run went (slow scans, s
 questions, cycles to converge) is itself a finding about the system. Review the
 bundler's secret warnings before a bundle leaves the machine.
 
+## Graph and schematic
+
+After any scan, `scripts/graph_export.py` turns the scan directory into one graph and
+draws it:
+
+```bash
+python scripts/graph_export.py --scan-dir <run>/scan --out-dir <run>/graph \
+  [--group-by asset] [--schematically <Schematically checkout>]
+```
+
+- `graph.json` — graphify's node-link format, so anything that reads a graphify graph
+  reads this one. A node is a scanned file, a target several files point at (a package,
+  an external system, a repository), or a boundary pointer. Every link carries a basis:
+  `EXTRACTED` when a structural or behavioral finding backs it, `INFERRED` (0.65) when
+  only a pattern matched. A Python import of a module inside the root resolves to that
+  module's file.
+- `GRAPH_REPORT.md` — the most connected nodes, the communities, the links between
+  them, the files held by a pattern match only, and what sits outside the root.
+- `system.sov` — a Schematically document: one card per node, one wire per link
+  labelled with its relation and carrying its basis, one group per community. With
+  `--schematically` (or `SCHEMATICALLY_DIR`) that checkout's `scripts/layout_sov.mjs`
+  lays it out; without it the document is written unplaced.
+
+A community is a file's primary concern by default. The scan already sorted the target
+by concern, so the export runs no clustering to decide the groups. It does measure
+them. `graph.partitions` and the report give, for each way of grouping the nodes (by
+concern, by asset kind, and by Louvain detection when `networkx` is importable), the
+grouping's modularity and where that sits among 1000 seeded shuffles of the same group
+sizes over the same links. Read the z and p before leaning on a grouping: near zero
+means the grouping says nothing about which nodes are linked, and any statistic then
+computed per group is a statistic of the labels, not of the system. The detected
+grouping is fitted to the links, so its score is a ceiling to compare against, not a
+test. `graph.hyperedges` lists every set of three or more files tied by one shared
+target, in graphify's hyperedge shape; these are the links a pairwise view undercounts.
+
+This is a process surface, like `report.html`. It changes no gate and no card.
+
+## Company assets
+
+The twelve concerns describe one agent, skill and workflow system. The same scan maps
+the other assets a company can reach from a root when it is given the asset overlay:
+
+```bash
+python scripts/cartographer_scan.py --target <root> --environment <run>/environment.json \
+  --registry references/concerns.registry.json --registry references/assets.registry.json \
+  --out-dir <run>/scan --cache <run>/scan-cache.json --compact
+python scripts/graph_export.py --scan-dir <run>/scan --out-dir <run>/graph --group-by asset
+```
+
+| Asset kind | Concern | Asking |
+|---|---|---|
+| documents | `asset-documents` | What written knowledge is held here; where is the hosted copy |
+| data | `asset-data` | What data is kept here; which stores hold it |
+| services | `asset-services` | What the company runs, and on whose platform |
+| ownership | `asset-ownership` | Who owns each asset; who is asked about it |
+| access | `asset-access` | Which credentials reaching these assets needs, by name, never by value |
+| brand and media | `asset-brand-media` | What logos, images, video, fonts and design files are held |
+| system description | the twelve concerns | The agent, skill and workflow system itself |
+
+A concern names its kind with `asset_kind` in the registry; a concern that names none
+belongs to the system description. With `--group-by asset` each kind is one group in
+the graph and the schematic, and the system description is one group among them. The
+six asset concerns are provisional: they have no structural validator yet, so every
+file they hold stays at `candidate` and every link they add is `INFERRED`. Elicit and
+reconcile them like any other slot. Add a kind with one registry entry and one scan
+config; no script changes.
+
 ## Extending
 
 Prefer a registry overlay over changing the maintained registry. Create a provisional

@@ -13,6 +13,13 @@ is an **onboarding card** — capability-and-requirement cards for every real ag
 workflow the target has, built from that target's own data, plus the actual exported source
 underneath every claim.
 
+A scan also exports as a graph in graphify's format, a report on it, and a Schematically
+document (`scripts/graph_export.py`), with every link marked as backed by evidence or by a
+pattern match only, and each way of grouping the nodes tested against shuffled groupings. With
+the asset overlay (`references/assets.registry.json`) the same run maps a company's documents,
+data, services, owners, access and media, with the system description as one asset kind among
+them.
+
 Full documentation: [SKILL.md](SKILL.md). Version history (every entry earned by actually
 running the tool against a real target, not by reading the code): [RELEASES.md](RELEASES.md).
 

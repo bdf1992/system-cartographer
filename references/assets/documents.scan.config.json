@@ -1,0 +1,11 @@
+{
+  "include": ["**/*.md", "**/*.txt", "**/*.rst", "**/*.pdf", "**/*.docx", "**/*.pptx", "**/*.html"],
+  "exclude": ["**/node_modules/**", "**/CHANGELOG*", "**/LICENSE*"],
+  "edge_patterns": [
+    {
+      "kind": "hosted_document",
+      "include": ["**/*.md", "**/*.txt", "**/*.rst", "**/*.html"],
+      "regex": "https?://((?:docs|drive|sheets|slides)\\.google\\.com|[\\w-]+\\.atlassian\\.net/wiki|[\\w-]+\\.notion\\.site|www\\.notion\\.so|[\\w-]+\\.sharepoint\\.com|miro\\.com|www\\.figma\\.com)"
+    }
+  ]
+}

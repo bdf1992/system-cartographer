@@ -25,6 +25,7 @@
     "produces": {"type": "array", "items": {"type": "string"}},
     "depends_on": {"type": "array", "items": {"type": "string"}},
     "status": {"enum": ["stable", "provisional", "disabled"]},
+    "asset_kind": {"type": "string", "minLength": 1},
     "signal": {"type": "string"},
     "registration_questions": {"type": "array", "items": {"type": "string"}}
   },
