@@ -1,6 +1,6 @@
 ---
 name: system-cartographer
-description: Reverse-engineer and formally describe a tacit Agent, Skill, Workflow, or AI-native system across GPT, Claude, Grok, Ollama, custom harnesses, IDE agents, and repository environments. Negotiate the host's model, runtime, tools, authority, evidence roots, and constraints; elicit the builder's model before scanning; run a bounded registry-driven scan; reconcile belief against evidence; and produce typed cards, a pattern map, deltas, and tending potential. Use for requests to document, formalize, audit, port, hand off, compare, or understand a manually built system, including “capture how this actually works,” “what is my agent doing,” “make this portable across models,” and “help me understand our patterns.” Also use to map the assets a company can reach on a file system or shared drive (documents, data, services, owners, access, log data, media, and every file nothing else accounts for), with the system description as one asset among them, and to export any scan as a graph and a Schematically document, including “map what is on this drive,” “what assets do we have,” “what do our logs say,” and “draw this system.”
+description: Reverse-engineer and formally describe a tacit Agent, Skill, Workflow, or AI-native system across GPT, Claude, Grok, Ollama, custom harnesses, IDE agents, and repository environments. Negotiate the host's model, runtime, tools, authority, evidence roots, and constraints; elicit the builder's model before scanning; run a bounded registry-driven scan; reconcile belief against evidence; and produce typed cards, a pattern map, deltas, and tending potential. Use for requests to document, formalize, audit, port, hand off, compare, or understand a manually built system, including “capture how this actually works,” “what is my agent doing,” “make this portable across models,” and “help me understand our patterns.” Also use to map the assets a company can reach on a file system or shared drive (documents, data, services, owners, access, log data, media, and every file nothing else accounts for), with the system description as one asset among them, and to export any scan as a graph and a Schematically document, including “map what is on this drive,” “what assets do we have,” “what do our logs say,” and “draw this system.” Every claim the run makes is audited through eleven recorded stages (intake, findings, evidence, conflicts, organization, refutation, judgement, verdict, qualification, settle, validation); use for “audit this,” “argue it out,” “is that actually true of our system,” and “validate the findings.”
 ---
 
 # System Cartographer
@@ -227,6 +227,63 @@ gate never means bypassing it. The bundle also carries the **process trace**
 separate from evidence, always included, because how the run went (slow scans, skipped
 questions, cycles to converge) is itself a finding about the system. Review the
 bundler's secret warnings before a bundle leaves the machine.
+
+## The audit: eleven stages every claim walks
+
+The phases above say what the run does. The audit says what happens to each thing the
+run comes to believe. A claim is one checkable statement about the target: a belief
+the builder gave at elicitation, or a statement the scan supports. `scripts/audit.py`
+keeps one record per claim in `<run>/audit.json` and regenerates `AUDIT.md` from it.
+
+| Stage | What is recorded | Where it comes from |
+|---|---|---|
+| intake | the claim as it arrived, and who made it | Elicit (blind belief), or `seed` from a scan |
+| findings | what the scan or a person noticed that bears on it | Scan |
+| evidence | the findings that hold up, each `EXTRACTED` or `INFERRED` | Scan findings past `candidate`; the export |
+| conflicts | where belief and evidence, or two pieces of evidence, disagree | Reconcile |
+| organization | where the claim is filed: concern, asset kind or community | Join; the graph export |
+| refutation | an attempt to make the claim false, the check run, and whether it survived | Reconcile, argued |
+| judgement | the reasons, weighed, by a named actor | Reconcile |
+| verdict | one delta word: confirmed, drift, undocumented, unevidenced, aspiration | Reconcile output |
+| qualification | what the verdict rests on, its limits, what would overturn it | Assemble |
+| settle | the owner's disposition: accepted, repair, deferred, dropped | Hand back |
+| validation | a second record of the same claim, by a different actor, walked through the same stages | A second person or agent |
+
+The stages are not the phases one for one: a phase can feed several stages, and a claim
+can sit at `conflicts` while the run has moved on.
+
+```bash
+python scripts/audit.py init --run "$RUN" --actor <you>
+python scripts/audit.py intake --run "$RUN" --actor <you> --source builder --concern <concern> --statement "..."
+python scripts/audit.py seed --run "$RUN" --actor <you> --scan-dir "$RUN/scan"   # one claim per concern
+python scripts/audit.py record <claim> <stage> --run "$RUN" --actor <you> ...
+python scripts/audit.py validate <claim> --run "$RUN" --actor <someone else>
+python scripts/audit.py status --run "$RUN"
+```
+
+What the script refuses, so the order is held by the record and not by memory:
+
+- A stage while the stage before it is empty. Findings, evidence and conflicts may be
+  recorded as absent with `--none --text <where you looked>`; nothing else may.
+- A judgement with no refutation attempt. Every claim is argued against before it is
+  judged, including the ones everybody already believes.
+- A `confirmed` verdict with no `EXTRACTED` evidence, or after a refutation that
+  defeated the claim.
+- A second verdict or settlement in the same round. To change one, record the earlier
+  stage that changed: every later entry moves to the claim's history and the claim
+  walks forward again, with the round number raised.
+- Validation of an unsettled claim, and validation by an actor who judged it.
+
+Validation is the same process run again, not a signature. `validate` opens a second
+claim record with the same statement; its actor walks it from findings to verdict
+without reading the first record's entries. Matching verdicts mark the first claim
+`validated`. A different verdict is recorded on the first claim as a conflict and
+reopens it from there, so a disagreement is argued, not outvoted.
+
+The authority boundary holds here too: the agent may record findings, evidence,
+conflicts and refutation attempts; the judgement, the verdict and the settlement are
+recorded under the name of whoever actually made them. Never settle on the owner's
+behalf.
 
 ## Graph and schematic
 
