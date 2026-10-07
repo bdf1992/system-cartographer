@@ -101,6 +101,10 @@ _NOT_OWN = re.compile(r"\.d\.ts$|(^|/)(vendor|vendored|third_party|node_modules|
 _TEST_NAME = re.compile(r"^(?:test_(.+)|(.+)_test|(.+)\.(?:test|spec))$")
 OWN, TEST, NOT_OWN = "own", "test", "not written here"
 SCRIPT_EXTENSIONS = frozenset({".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"})
+# The file that stands for its folder: a test named for the folder is about the package.
+PACKAGE_FILES = frozenset({"__init__", "index"})
+# Trailing parts of a path a test's name may run together: `commands_observer` for commands/observer.py.
+SUBJECT_PARTS = 3
 _ID_TOKEN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9_.:-]*[A-Za-z0-9])?")
 
 
@@ -570,20 +574,37 @@ def language(rel):
 
 
 def test_subjects(nodes, links):
-    """Each test file joined to the file it is about, found by name: `test_x`, `x_test`,
-    `x.test` and `x.spec` are about the target's own file `x` in the same language. Where several files have
-    that name the one the test's code links to is taken, or failing that the one in the
-    test's own folder; where that does not settle it the test is about none. The join is a
-    `tests` link, EXTRACTED when the test's code links into that file as well and INFERRED
-    when the name is all there is. Returns the counts for the report."""
+    """Each test file joined to the file it is about.
+
+    The name gives the candidates: `test_x`, `x_test`, `x.test` and `x.spec` may be about
+    the target's own `x` in the same language, where `x` is a file's name, a package's
+    folder, or the last folders and name of a file run together (`test_commands_observer`
+    for `commands/observer.py`). The test's code decides among them: the candidate it has
+    the most links into is its subject, EXTRACTED, and a package counts every link into its
+    folder. With no link into any candidate the name is all there is. It is then taken,
+    INFERRED, only for a candidate beside the test, or for a lone candidate when the test
+    links into none of the target's own code at all, as a test that drives a command does.
+    Anything else is about no one file. Returns the counts for the report."""
     named, reached = {}, {}
     for rel, node in nodes.items():
         if node["kind"] == "file" and node.get("role") == OWN:
-            named.setdefault(os.path.splitext(os.path.basename(rel))[0], []).append(rel)
+            parts = os.path.splitext(rel)[0].split("/")
+            parts = parts[:-1] if parts[-1] in PACKAGE_FILES else parts
+            for count in range(1, min(len(parts), SUBJECT_PARTS) + 1):
+                named.setdefault("_".join(parts[-count:]), set()).add(rel)
     for link in links:
         a, b = nodes[link["source"]], nodes[link["target"]]
         if a.get("role") == TEST and b.get("role") == OWN:
-            reached.setdefault(a["source_file"], set()).add(b["source_file"])
+            row = reached.setdefault(a["source_file"], {})
+            row[b["source_file"]] = row.get(b["source_file"], 0) + 1
+
+    def weight(test, candidate):
+        into = reached.get(test, {})
+        if os.path.splitext(os.path.basename(candidate))[0] not in PACKAGE_FILES:
+            return into.get(candidate, 0)
+        folder = os.path.dirname(candidate) + "/"
+        return sum(count for file, count in into.items() if file.startswith(folder))
+
     stats = {"test_files": 0, "with_subject": 0, "linked_too": 0}
     for rel in sorted(nodes):
         node = nodes[rel]
@@ -591,18 +612,21 @@ def test_subjects(nodes, links):
             continue
         stats["test_files"] += 1
         about = _TEST_NAME.match(os.path.splitext(os.path.basename(rel))[0])
-        found = [f for f in named.get(next(part for part in about.groups() if part), []) if language(f) == language(rel)] \
-            if about else []
-        if len(found) > 1:
-            found = ([f for f in found if f in reached.get(rel, ())]
-                     or [f for f in found if os.path.dirname(f) == os.path.dirname(rel)])
-        if len(found) != 1:
+        found = sorted(f for f in named.get(next(part for part in about.groups() if part), ())
+                       if language(f) == language(rel)) if about else []
+        weights = {f: weight(rel, f) for f in found}
+        most = max(weights.values(), default=0)
+        if most:
+            best, linked = [f for f in found if weights[f] == most], True
+        else:
+            beside, linked = [f for f in found if os.path.dirname(f) == os.path.dirname(rel)], False
+            best = beside if len(beside) == 1 else found if not reached.get(rel) else []
+        if len(best) != 1:
             continue
-        linked = found[0] in reached.get(rel, ())
-        node["tests"] = found[0]
+        node["tests"] = best[0]
         stats["with_subject"] += 1
         stats["linked_too"] += linked
-        links.append({"source": rel, "target": found[0], "relation": "tests",
+        links.append({"source": rel, "target": best[0], "relation": "tests",
                       "confidence": "EXTRACTED" if linked else "INFERRED",
                       "confidence_score": 1.0 if linked else INFERRED_SCORE, "source_file": rel,
                       "concern": node["primary_concern"]})
@@ -622,7 +646,8 @@ def tests_report(graph):
             f"test files and {roles.get(NOT_OWN, 0)} are in files it holds but did not write (declarations, vendored "
             f"or generated). {stats.get('with_subject', 0)} of {stats.get('test_files', 0)} test files are joined by name "
             f"to the file they are about; in {stats.get('linked_too', 0)} of those the test's code links into that file "
-            "as well. A test file with no such join is not a test of nothing: its name matched no one file.", ""]
+            "as well, and the others stand on the name alone. A test file with no such join is not a test of nothing: "
+            "its name and its links settled on no one file.", ""]
 
 
 def node_layer(node):

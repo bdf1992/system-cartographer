@@ -38,8 +38,9 @@ from collections import Counter, deque
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import graph_export as ge  # noqa: E402
 
+# `tests` joins a test file to its subject by name; what the test depends on is in its own links.
 STRUCTURAL = frozenset({"contains", "method", "defines", "binds", "rationale_for", "points_outside_root",
-                        "declares", "may_use"})
+                        "declares", "may_use", "tests"})
 DEPTHS = 3
 CHECK_SAMPLE = 60
 CHECK_FILE_BYTES = 2_000_000

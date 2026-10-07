@@ -12,18 +12,26 @@ but did not write, 639 of them one type-declaration file filling most of a plane
 - **Tests and code not written here each have a plane**, after the rest of the code, whatever
   folder or declared layer the file sits in. A `.test.tsx` beside its component is on the
   tests plane.
-- **A test file is joined to the file it is about**, by name: `test_x`, `x_test`, `x.test` and
-  `x.spec` are about the target's own `x` in the same language. Among several files of that
-  name the one the test's code links to is taken, else the one in the test's folder, else
-  none. The join is a `tests` link, EXTRACTED when the test's code links into the file too and
-  INFERRED when the name is all there is. On that root 129 of 262 test files are joined, 117
-  of them EXTRACTED.
+- **A test file is joined to the file it is about.** The name gives the candidates:
+  `test_x`, `x_test`, `x.test` and `x.spec` may be about the target's own `x` in the same
+  language, where `x` is a file's name, a package's folder, or the last folders and name of a
+  file run together (`test_commands_observer` for `commands/observer.py`). The test's code
+  decides among them: the candidate it has the most links into is its subject, EXTRACTED. With
+  no link into any candidate the name is taken, INFERRED, only for a file beside the test, or
+  for a lone candidate when the test links into none of the target's own code. On that root
+  143 of 262 test files are joined, 138 of them EXTRACTED, 8 of them to a package.
+- **`graph_query.py` does not follow a join.** What a test depends on is in its own links, so
+  `search`, `impact`, `reach` and `measure` answer as they did: the index built from that root
+  is identical, field for field, to the one built before this release.
 - `GRAPH_REPORT.md` has a "Whose code" section with these counts.
-- `tests/test_roles.py` (new): 17 cases; each of 20 rules broken in a copy turns one red.
+- `tests/test_roles.py` (new): 20 cases; each of 36 rules broken in a copy turns one red.
 
-A test file with no join is not a test of nothing. Its name matched no one file: 133 of the
-262 on that root, such as `test_github_protect.py` and `test_case_envelope.py`, test something
-that is not a file of that name.
+What this does not do. A test file with no join is not a test of nothing: for 119 of the 262
+on that root the name and the links settled on no one file, as with `test_backup.py`, which
+tests `ops/backup_ops.py` under another name. The rules for what is a test and what was not
+written here are the ones `graph_query.py` already had and have their gaps: a hand-written
+`.d.ts` counts as not written here (2 files on that root), and `editor-test.cjs`, a
+`conftest.py` outside a tests folder and a `*_tests.py` are not seen as tests.
 
 ## 3.9.0 (2026-10-07)
 
