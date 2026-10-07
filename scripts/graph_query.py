@@ -106,21 +106,35 @@ def build_index(graph):
 
 
 _WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]{3,}")
+_PAIR = re.compile(r"(?<![A-Za-z0-9_])(?=([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]{2,}))")
 WRITTEN_TOP = 30
 
 
 def written_in(index):
-    """Where each defined name is written, read from the files: {name: [how many files, [[file node, times], ...]]}.
+    """Where names are written, read from the files. Three tables, each [[file node, times], ...]:
+
+    written    {name: [how many files, rows]}   every file that writes a defined name
+    qualified  {"file::name": rows}             files that write module.name, for the module that defines it
+    loaded     {file: rows}                     files that write a module's dotted path (folder.module)
+    stemmed    {file: rows}                     files that write a file's bare name, where no other file shares it
 
     The parse links a use only where it can resolve it. A function reached as module.name(),
-    passed by name, or named in a string is still written down somewhere, and this finds it. It
-    is a fact about text, not meaning: two things of one name are counted together.
+    patched as "pkg.module.name", passed by name, or a module started with -m pkg.module is still
+    written down somewhere, and this finds it. It is a fact about text, not meaning: `written`
+    counts two things of one name together, which is what `qualified` is for.
     """
     nodes, root = index["nodes"], index.get("root") or ""
-    wanted = {row["label"].rstrip("()").lstrip(".").split(".")[-1]
-              for row in nodes if row["kind"] in ("function", "class") and row["own"]}
-    wanted = {name for name in wanted if len(name) >= 4}
-    found = {}
+    defined, stems = {}, {}
+    for row in nodes:
+        if row["kind"] in ("function", "class") and row["own"] and row["file"]:
+            name = row["label"].rstrip("()").lstrip(".").split(".")[-1]
+            if len(name) >= 3:
+                defined.setdefault(name, set()).add(row["file"])
+        elif row["kind"] == "file" and row["file"]:
+            stems.setdefault(os.path.splitext(os.path.basename(row["file"]))[0], []).append(row["file"])
+    wanted = {name for name in defined if len(name) >= 4}
+    lone = {stem: homes[0] for stem, homes in stems.items() if len(homes) == 1 and len(stem) >= 4}
+    found, qualified, loaded, stemmed = {}, {}, {}, {}
     for i, row in enumerate(nodes):
         if row["kind"] != "file" or os.path.splitext(row["file"])[1].lower() not in CHECK_EXTENSIONS:
             continue
@@ -129,12 +143,26 @@ def written_in(index):
             if os.path.getsize(full) > CHECK_FILE_BYTES:
                 continue
             with open(full, encoding="utf-8", errors="replace") as handle:
-                counts = Counter(_WORD.findall(handle.read()))
+                text = handle.read()
         except OSError:
             continue
+        counts = Counter(_WORD.findall(text))
         for name in counts.keys() & wanted:
             found.setdefault(name, []).append([i, counts[name]])
-    return {name: [len(rows), sorted(rows, key=lambda r: (-r[1], r[0]))[:WRITTEN_TOP]] for name, rows in found.items()}
+        for stem in counts.keys() & lone.keys():             # "census" in a command table, "bite.py" in a path
+            if lone[stem] != row["file"]:
+                stemmed.setdefault(lone[stem], []).append([i, counts[stem]])
+        for (left, right), times in Counter(_PAIR.findall(text)).items():
+            for home in stems.get(left, ()):                 # module.name, where that module defines name
+                if home != row["file"] and home in defined.get(right, ()):
+                    qualified.setdefault(f"{home}::{right}", []).append([i, times])
+            for home in stems.get(right, ()):                # folder.module, the module's dotted path
+                if home != row["file"] and os.path.basename(os.path.dirname(home)) == left:
+                    loaded.setdefault(home, []).append([i, times])
+    top = lambda rows: sorted(rows, key=lambda r: (-r[1], r[0]))[:WRITTEN_TOP]  # noqa: E731
+    return ({name: [len(rows), top(rows)] for name, rows in found.items()},
+            {key: top(rows) for key, rows in qualified.items()}, {key: top(rows) for key, rows in loaded.items()},
+            {key: top(rows) for key, rows in stemmed.items() if len(rows) < WRITTEN_TOP})   # more is a common word
 
 
 # ---- traversal --------------------------------------------------------------------------------
@@ -388,7 +416,7 @@ def main():
     if args.cmd == "index":
         started = time.time()
         index = build_index(read_json(args.graph))
-        index["written"] = written_in(index)
+        index["written"], index["qualified"], index["loaded"], index["stemmed"] = written_in(index)
         index["built"] = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(args.graph)))
         os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
         with open(args.out, "w", encoding="utf-8", newline="\n") as handle:

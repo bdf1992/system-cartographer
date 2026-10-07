@@ -34,6 +34,7 @@ MAX_SUBJECTS = 3
 MAX_CHARS = 2000
 MAX_LINE = 220
 MAX_NAMED = 4
+_PAPER = frozenset({".md", ".txt", ".rst", ".json", ".yml", ".yaml", ".toml", ".html", ".csv"})
 MAX_COMMON = 40            # a name written in more files than this cannot be told apart by name
 MIN_SENTENCE = 40
 MAX_SEVERAL = 6          # more definitions than this is a common word, and is not listed
@@ -227,6 +228,9 @@ def from_source(full, row):
             if (isinstance(n, ast.Name) and n.id == name and not owner)
             or (isinstance(n, ast.Attribute) and n.attr == name and owner
                 and isinstance(n.value, ast.Name) and n.value.id in holders))
+        # A method called on an object (watch.over()) is some object's .over: said apart, not as a sure use.
+        said["loose"] = sum(1 for n in ast.walk(tree) if isinstance(n, ast.Attribute) and n.attr == name) - said["inside"] \
+            if owner else 0
     doc = (ast.get_docstring(node) or "").strip().split("\n\n")[0].replace("\n", " ")
     stop = re.search(r"(?<!e\.g)(?<!i\.e)(?<!etc)(?<!vs)\.\s", doc)
     # A first sentence too short to say anything ("(allowed, reason).") is followed by the rest.
@@ -289,60 +293,60 @@ def card(gq, index, i, notes, copy=None):
     parsed = row["layer"] == "code"
     if notes and not note and not does and row["file"].endswith(".py") and row["kind"] == "file" and not row["test"]:
         lines.append("  it has no docstring and nothing is on record about it; if you learn what it is for, add a docstring")
+    # Who uses it, from every route there is, as one list: the links the parse read, the files that
+    # write its name (module.name(), passed by name, in a string), and the files that write it
+    # qualified by its module. A reader given three lists adds them up wrongly.
     read, guessed = users(index, gq.start_set(index, i))
     code, tests = by_file(index, read, row["file"])
-    if code:
-        lines.append(f"  used from {named(code)}")
-    if "inside" in source:
-        inside = source["inside"]
-        if inside:
-            lines.append(f"  used {inside} time{'' if inside == 1 else 's'} in its own file")
-    else:
-        inside = own_uses(full, row)             # not Python: the text is all there is to count
-        if inside:
-            lines.append(f"  written {inside} more time{'' if inside == 1 else 's'} in its own file")
-    # Beside the links the parse read: the files where the name is written at all. That catches
-    # module.name(), a function passed by name, and a name in a string, which the parse does not link.
     name = row["label"].rstrip("()").lstrip(".").split(".")[-1]
-    searched = "written" in index and row["kind"] != "file" and len(name) >= 4
+    stem = os.path.splitext(os.path.basename(row["file"]))[0]
+    is_file = row["kind"] == "file"
+    searched = "written" in index and not is_file and len(name) >= 4
     total, rows = index["written"].get(name, (0, [])) if searched else (0, [])
-    # A name with one definition is that thing wherever it is written; a shared name in many files is not.
-    wide = total > MAX_COMMON
-    common = wide and len(index["names"].get(name.lower(), [])) > 1
-    linked = {path for path, _n in code + tests} | {row["file"]}
-    more_code, more_tests = [], []
-    for j, times in ([] if wide else rows):
+    wide = total > MAX_COMMON                     # written in too many files for the name alone to mean this thing
+    exact = (index.get("loaded") or {}).get(row["file"], []) + (index.get("stemmed") or {}).get(row["file"], []) \
+        if is_file else (index.get("qualified") or {}).get(f"{row['file']}::{name}", [])
+    merged, papers = {False: dict(code), True: dict(tests)}, set()
+    for j, times in exact + ([] if wide else rows):
         other = index["nodes"][j]
-        if other["file"] not in linked:
-            (more_tests if other["test"] else more_code).append((other["file"], times))
-    if common:
-        lines.append(f"  its name is written in {total} files: too common to find its users by name")
-    elif wide:
-        lines.append(f"  its name is written in {total} files in all")
-    elif more_code:
-        lines.append(f"  its name is also written in {named(more_code)}")
+        if other["file"] and other["file"] != row["file"]:
+            table = merged[bool(other["test"])]
+            table[other["file"]] = max(table.get(other["file"], 0), times)
+            if os.path.splitext(other["file"])[1].lower() in _PAPER:
+                papers.add(other["file"])        # a document or a record that names it: after the code that uses it
+    rank = lambda table: sorted(table.items(), key=lambda item: (item[0] in papers, -item[1], item[0]))  # noqa: E731
+    code, tests = rank(merged[False]), rank(merged[True])
+    if code:
+        lines.append(f"  used or named in {named(code)}")
+    inside, loose = source.get("inside"), source.get("loose", 0)
+    if inside is None:
+        inside = own_uses(full, row)             # not Python: the text is all there is to count
+    if inside:
+        lines.append(f"  used {inside} time{'' if inside == 1 else 's'} in its own file")
+    elif loose:
+        lines.append(f"  .{name} is written {loose} time{'' if loose == 1 else 's'} in its own file, on some object")
+    if wide and searched:
+        lines.append(f"  the name {name} is written in {total} files, too many to list; the files above are those the "
+                     f"parse linked{'' if method else ' or that write ' + stem + '.' + name}")
     if tests:
-        lines.append(f"  tests that use it, {named(tests)}")
-    if more_tests:
-        lines.append(f"  tests that write its name, {named(more_tests)}")
-    if not tests and not more_tests and not row["test"]:
+        lines.append(f"  tests that use or name it, {named(tests)}")
+    elif not row["test"]:
         whole = next((j for j in index["files"].get(row["file"], []) if index["nodes"][j]["kind"] == "file"), None)
         around = users(index, gq.start_set(index, whole))[0] if whole is not None else set()
-        stem = os.path.splitext(os.path.basename(row["file"]))[0].lower()
         # Of the tests that import the file, the one named for it comes first.
-        near = sorted(by_file(index, around, row["file"])[1], key=lambda item: (stem not in item[0].lower(), -item[1], item[0]))
-        said = "no test names it" if searched and not wide else "the map links no test to it"
-        lines.append(f"  {said}; tests that import its file, {named(near)}" if near else f"  {said}, and none imports its file")
-    if not parsed and not read:
+        near = sorted(by_file(index, around, row["file"])[1], key=lambda item: (stem.lower() not in item[0].lower(), -item[1], item[0]))
+        lines.append("  no test names it" + (f"; tests that import its file, {named(near)}" if near else ", and none imports its file")
+                     + ". A test that runs it through a command, a subprocess or a browser is not seen here")
+    if not parsed and not read and not exact:
         lines.append("  this kind of file is not parsed for links; search for its name to find what reads it")
-    elif not code and not more_code and not wide:
-        if row["kind"] == "file":
-            lines.append("  the map links no other file to it; it does not see a file loaded by name "
-                         "(a command table, a dynamic import, config), so search for its name")
-        elif searched:
+    elif not code and not inside and not loose:
+        if is_file:
+            lines.append("  no other file imports it or writes its module path; a file named only in a table "
+                         "(a list of command names, config) is still not seen, so search for its name")
+        elif searched and not wide:
             lines.append("  no other file uses it or writes its name")
         else:
-            lines.append("  the map links no other file to it; it does not see x.name() or module.name(), so search for its name")
+            lines.append("  no user found; x.name() on an object is not seen, so search for its name")
     if guessed and "written" not in index:
         files = {index["nodes"][j]["file"] for j in guessed} - {row["file"], ""}
         if files:

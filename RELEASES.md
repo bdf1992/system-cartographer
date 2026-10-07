@@ -1,5 +1,29 @@
 # Releases
 
+## 3.8.0 (2026-10-07)
+
+Round four of the trials, and a fixed set to score against. A reader who believes every line
+was wrong on five of ten new jobs; a reader on a weaker model, shown users on three separate
+lines, read the first and stopped. The jobs from every round where a reader was led wrong are
+now one set of twenty, each with the fact a reviewer found by hand. The hook as of 3.6.0 holds
+that fact on 12 of the 20; this release on 16.
+
+- **One list of users and one of tests.** The links the parse read, the files that write the
+  name, and the files that write it qualified by its module are merged: `used or named in ...`
+  and `tests that use or name it ...`. Code comes before documents that mention it.
+- **The index records qualified names and module paths.** `written_in` also returns
+  `qualified` (files that write `module.name` for the module that defines it, which tells two
+  things of one common name apart), `loaded` (files that write `folder.module`, as in
+  `-m pkg.module` or a patched dotted string) and `stemmed` (files that write a file's bare
+  name where no other file shares it, as in a path string).
+- **A method called on an object in its own file is said,** apart from uses on `self`.
+- **The no-test line says what it cannot see:** a test that runs the code through a command, a
+  subprocess or a browser.
+
+Four of the twenty are not answered by reading text. Three ask which tests reach a function
+through a command or a browser, which only recorded test coverage can say; one is a command
+whose file shares its bare name with another.
+
 ## 3.7.0 (2026-10-07)
 
 On a records-heavy root the view drew every record as one disc: 3,718 files under one label,
@@ -32,6 +56,7 @@ the scan, so the counts move if the root has changed. Of the 2,991 INFERRED link
 2,875 are a repository's name matching `control/policy/<name>.json`, which is a record about
 the repository and not the repository; 48 are one shared name settled by its field; the other
 68 are words that are also file names or ids, such as `task`, `done` or `kernel`. An id written as part of a path is not followed.
+
 ## 3.6.0 (2026-10-07)
 
 Round three of the trials. An agent that believes every line and never checks was wrong on
