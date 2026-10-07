@@ -589,9 +589,9 @@ def test_subjects(nodes, links):
     for rel, node in nodes.items():
         if node["kind"] == "file" and node.get("role") == OWN:
             parts = os.path.splitext(rel)[0].split("/")
-            parts = parts[:-1] if parts[-1] in PACKAGE_FILES else parts
-            for count in range(1, min(len(parts), SUBJECT_PARTS) + 1):
-                named.setdefault("_".join(parts[-count:]), set()).add(rel)
+            for path in [parts] + ([parts[:-1]] if parts[-1] in PACKAGE_FILES else []):    # a package file, and its folder
+                for count in range(1, min(len(path), SUBJECT_PARTS) + 1):
+                    named.setdefault("_".join(path[-count:]), set()).add(rel)
     for link in links:
         a, b = nodes[link["source"]], nodes[link["target"]]
         if a.get("role") == TEST and b.get("role") == OWN:

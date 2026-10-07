@@ -24,14 +24,16 @@ but did not write, 639 of them one type-declaration file filling most of a plane
   `search`, `impact`, `reach` and `measure` answer as they did: the index built from that root
   is identical, field for field, to the one built before this release.
 - `GRAPH_REPORT.md` has a "Whose code" section with these counts.
-- `tests/test_roles.py` (new): 20 cases; each of 36 rules broken in a copy turns one red.
+- `tests/test_roles.py` (new): 21 cases; each of 40 rules broken in a copy turns one red.
 
 What this does not do. A test file with no join is not a test of nothing: for 119 of the 262
 on that root the name and the links settled on no one file, as with `test_backup.py`, which
 tests `ops/backup_ops.py` under another name. The rules for what is a test and what was not
 written here are the ones `graph_query.py` already had and have their gaps: a hand-written
 `.d.ts` counts as not written here (2 files on that root), and `editor-test.cjs`, a
-`conftest.py` outside a tests folder and a `*_tests.py` are not seen as tests.
+`conftest.py` outside a tests folder and a `*_tests.py` are not seen as tests. The match is
+case-sensitive, so `Tests/FooTests.cs` is read as own code. A subject the test links into
+once, when it links into other files dozens of times, is still EXTRACTED.
 
 ## 3.9.0 (2026-10-07)
 

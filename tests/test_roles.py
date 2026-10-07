@@ -17,12 +17,13 @@ OWN = ["kernel/store.py", "kernel/ops/store.py", "kernel/ids.py", "kernel/dup.py
        "kernel/twin.py", "other/twin.py", "kernel/most.py", "other/most.py", "kernel/pack/__init__.py",
        "kernel/pack/inner.py", "kernel/cmd/pack.py", "kernel/cmd/observer.py", "tools/build.py", "tools/cli.py",
        "tools/lonely.py", "web/src/panel.tsx", "web/src/widget.ts", "web/src/shared.ts", "web/lib/shared.ts",
-       "web/src/menu.ts", "web/src/loader.mjs"]
+       "web/src/menu.ts", "web/src/loader.mjs", "web/src/foo/index.ts", "web/src/bar/index.ts", "kernel/a/b/c.py"]
 TESTS = ["tests/dup.py", "tests/test_store.py", "tests/test_ids.py", "tests/test_dup.py", "tests/test_nothing.py",
          "tests/helpers.py", "tests/test_twin.py", "tests/test_most.py", "tests/test_pack.py", "tests/test_cmd_observer.py",
          "tests/test_cli.py", "tests/test_lonely.py", "tools/build_test.py", "web/src/panel.test.tsx",
          "web/src/widget.test.tsx", "web/src/shared.test.ts", "web/src/client.spec.ts", "web/src/menu.spec.ts",
-         "web/src/loader.test.cjs", "web/__tests__/thing.js", "lib/spec/helper.rb"]
+         "web/src/loader.test.cjs", "web/__tests__/thing.js", "lib/spec/helper.rb", "web/src/foo/index.test.ts",
+         "web/src/bar.test.ts", "tests/test_a_b_c.py"]
 NOT_HERE = ["web/types/lib.d.ts", "web/out/bundle.js", "vendor/pkg/test_thing.py", "web/node_modules/p/i.js",
             "web/dist/app.js", "third_party/z/z.py", "gen/generated/q.py"]
 FILES = OWN + TESTS + NOT_HERE
@@ -32,7 +33,9 @@ LINKS = [("tests/test_store.py", "kernel/ops/store.py", 1), ("tests/test_ids.py"
          ("tests/test_twin.py", "kernel/twin.py", 1), ("tests/test_twin.py", "other/twin.py", 1),
          ("tests/test_most.py", "kernel/most.py", 1), ("tests/test_most.py", "other/most.py", 2),
          ("tests/test_pack.py", "kernel/pack/inner.py", 2), ("tests/test_pack.py", "kernel/cmd/pack.py", 1),
-         ("tests/test_cmd_observer.py", "kernel/cmd/observer.py", 1), ("tests/test_lonely.py", "kernel/ids.py", 1)]
+         ("tests/test_cmd_observer.py", "kernel/cmd/observer.py", 1), ("tests/test_lonely.py", "kernel/ids.py", 1),
+         ("web/src/foo/index.test.ts", "web/src/foo/index.ts", 1), ("web/src/bar.test.ts", "web/src/bar/index.ts", 1),
+         ("tests/test_a_b_c.py", "kernel/a/b/c.py", 1)]
 RELATIONS = ["calls", "uses", "references"]
 
 
@@ -116,8 +119,13 @@ class Subjects(Built):
         # two links into kernel/pack/inner.py against one into kernel/cmd/pack.py
         self.assertEqual(self.subject("tests/test_pack.py"), ("kernel/pack/__init__.py", "EXTRACTED"))
 
-    def test_a_name_may_run_a_folder_and_a_file_together(self):
+    def test_a_package_file_is_a_candidate_under_its_own_name_and_its_folder_s(self):
+        self.assertEqual(self.subject("web/src/foo/index.test.ts"), ("web/src/foo/index.ts", "EXTRACTED"))
+        self.assertEqual(self.subject("web/src/bar.test.ts"), ("web/src/bar/index.ts", "EXTRACTED"))
+
+    def test_a_name_may_run_folders_and_a_file_together(self):
         self.assertEqual(self.subject("tests/test_cmd_observer.py"), ("kernel/cmd/observer.py", "EXTRACTED"))
+        self.assertEqual(self.subject("tests/test_a_b_c.py"), ("kernel/a/b/c.py", "EXTRACTED"))
 
     def test_a_name_it_does_not_link_into_is_not_its_subject_when_it_links_elsewhere(self):
         self.assertIsNone(self.subject("tests/test_ids.py"))       # it links into store.py, not ids.py
@@ -144,9 +152,9 @@ class Subjects(Built):
             self.assertIsNone(self.subject(rel), rel)
 
     def test_the_counts_reach_the_report(self):
-        self.assertEqual(self.graph["graph"]["tests"], {"test_files": 21, "with_subject": 11, "linked_too": 6})
+        self.assertEqual(self.graph["graph"]["tests"], {"test_files": 24, "with_subject": 14, "linked_too": 9})
         report = ge.render_report(self.graph, "fixture")
-        self.assertIn("11 of 21 test files are joined by name", report)
+        self.assertIn("14 of 24 test files are joined by name", report)
         self.assertIn("14 are in files it holds but did not write", report)
 
 
