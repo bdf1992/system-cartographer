@@ -67,12 +67,24 @@ NULL_DRAWS = 1000
 HYPEREDGE_MIN = 3
 REPORT_ROWS = 15
 SOURCE_ROWS = 5
+# The scan's own import guesses, replaced by parsed imports when a code graph is merged.
+SCAN_IMPORT_KINDS = frozenset({"python_import", "js_import", "js_require"})
+# Relations that say where a definition sits, not what it does.
+STRUCTURAL_RELATIONS = frozenset({"contains", "method", "rationale_for"})
+# Above this many nodes the full document is a wall; the overviews are written and it is not.
+FULL_DOCUMENT_NODES = 2500
+CODE_CARDS = 14
+CODE_WIRES = 22
+AGENTIC_KINDS = frozenset({"agent", "skill", "hook", "workflow", "tool"})
+AGENTIC_READ_BYTES = 262144
+MAX_SHUFFLE_WORK = 30_000_000
 CODE_EXTENSIONS = frozenset({".py", ".js", ".mjs", ".ts", ".tsx", ".sh", ".ps1", ".go", ".rs", ".cs", ".java", ".rb"})
 LABEL_LENGTH = 28
 ELLIPSIS = "…"
 
 _ID_UNSAFE = re.compile(r"[^A-Za-z0-9_-]")
 _BACKSLASHES = re.compile(r"\\{2,}")
+_PATH_TOKEN = re.compile(r"[A-Za-z0-9_.$\\/-]+\.[A-Za-z0-9]{1,5}")
 _DRIVE_ROOT = re.compile(r"^[A-Za-z]:[\\/]*[A-Za-z]?$")
 
 
@@ -186,13 +198,197 @@ def link_basis(concern, edge, graph, stages):
     return "INFERRED", INFERRED_SCORE
 
 
-def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_by="concern"):
+def code_kind(node):
+    """'module', 'class', 'function' or 'symbol' for a parsed code node; None for one that
+    is not a definition inside the root (a rationale note, an imported name)."""
+    source_file = str(node.get("source_file") or "").replace("\\", "/")
+    if node.get("file_type") != "code" or not source_file:
+        return None
+    if node.get("_callable_class") is True:
+        return "class"
+    if node.get("_callable") is True:
+        return "function"
+    label = str(node.get("label") or "")
+    return "module" if label and source_file.endswith(label) else "symbol"
+
+
+def merge_code(nodes, links, skipped, code_dir):
+    """Lay the parsed code over the scanned files: every definition becomes a node under
+    the file that holds it, every call, import, inheritance and use becomes a link, and a
+    module is the file node itself. Returns the links, with the scan's own file-to-file
+    import guesses dropped in favour of the parsed ones."""
+    code = read_json(os.path.join(code_dir, "code-graph.json"))
+    lint_path = os.path.join(code_dir, "lint.json")
+    lint = read_json(lint_path) if os.path.exists(lint_path) else {}
+    mapped = {}
+    for node in code["nodes"]:
+        kind = code_kind(node)
+        rel = str(node.get("source_file") or "").replace("\\", "/")
+        if kind is None or rel not in nodes:
+            continue
+        holder = nodes[rel]
+        if kind == "module":
+            mapped[node["id"]] = rel
+            holder["code_community"] = node.get("community")
+            continue
+        node_id = f"code:{node['id']}"
+        mapped[node["id"]] = node_id
+        nodes[node_id] = {
+            "id": node_id, "label": str(node.get("label") or node["id"]), "file_type": "code", "source_file": rel,
+            "source_location": node.get("source_location"), "kind": kind, "source_class": holder.get("source_class"),
+            "concerns": list(holder["concerns"]), "evidence_stage": "structural",
+            "primary_concern": holder["primary_concern"], "code_community": node.get("community"),
+        }
+        if node.get("lint"):
+            nodes[node_id]["lint"] = node["lint"]
+    for rel, codes in (lint.get("by_file") or {}).items():
+        if rel in nodes:
+            nodes[rel]["lint"] = codes
+    kept = [l for l in links if not (l["relation"] in SCAN_IMPORT_KINDS and nodes[l["target"]]["kind"] == "file")]
+    skipped["scan_imports_replaced"] = len(links) - len(kept)
+    seen = set()
+    for link in code["links"]:
+        a, b = mapped.get(link.get("source")), mapped.get(link.get("target"))
+        relation = str(link.get("relation") or "relates_to")
+        if a is None or b is None:
+            skipped["code_links_leaving_root"] += 1
+            continue
+        if a == b or (a, b, relation) in seen:
+            continue
+        seen.add((a, b, relation))
+        basis = link.get("confidence") if link.get("confidence") in ("EXTRACTED", "INFERRED") else "INFERRED"
+        kept.append({
+            "source": a, "target": b, "relation": relation, "confidence": basis,
+            "confidence_score": link.get("confidence_score") or (1.0 if basis == "EXTRACTED" else INFERRED_SCORE),
+            "source_file": nodes[a]["source_file"], "concern": nodes[a]["primary_concern"],
+        })
+    declare_dependencies(nodes, kept, code_dir)
+    return kept
+
+
+def package_key(name):
+    return re.sub(r"[-_]+", "-", str(name)).lower()
+
+
+def declare_dependencies(nodes, links, code_dir):
+    """Join what the manifests declare to what the code imports: a declared package is an
+    external node marked declared, linked from the manifest that names it."""
+    path = os.path.join(code_dir, "dependencies.json")
+    if not os.path.exists(path):
+        return
+    externals = {package_key(n["label"]): n for n in nodes.values() if n["kind"] == "external"}
+    for manifest, names in sorted(read_json(path).items()):
+        if manifest not in nodes:
+            continue
+        for name in names:
+            node = externals.get(package_key(name))
+            if node is None:
+                node = externals[package_key(name)] = nodes[f"external:{name}"] = {
+                    "id": f"external:{name}", "label": name, "file_type": "external", "source_file": "",
+                    "kind": "external", "source_class": None, "concerns": ["required-tools-repos"],
+                    "evidence_stage": None, "primary_concern": nodes[manifest]["primary_concern"],
+                }
+            node["declared"] = True
+            links.append({
+                "source": manifest, "target": node["id"], "relation": "declares", "confidence": "EXTRACTED",
+                "confidence_score": 1.0, "source_file": manifest, "concern": nodes[manifest]["primary_concern"],
+            })
+
+
+def path_targets(text, nodes):
+    """The scanned files a piece of text names by path, in the order they appear."""
+    found = []
+    for token in _PATH_TOKEN.findall(text or ""):
+        parts = token.replace("\\", "/").split("/")
+        for start in range(len(parts)):
+            rel = "/".join(parts[start:])
+            if rel in nodes and nodes[rel]["kind"] == "file":
+                if rel not in found:
+                    found.append(rel)
+                break
+    return found
+
+
+def read_target_text(root, rel):
+    try:
+        with open(os.path.join(root, rel), encoding="utf-8", errors="ignore") as handle:
+            return handle.read(AGENTIC_READ_BYTES)
+    except OSError:
+        return ""
+
+
+def agentic_layer(nodes, links, graphs):
+    """The actors and triggers, wired down to what they run.
+
+    From the scan's structural findings: an agent definition becomes an agent node with a
+    link to each tool it is granted; a skill becomes a skill node; each hook binding and
+    each workflow becomes a node of its own. Then each is joined to the scanned files its
+    command or its text names by path, which is where the layer meets the parsed code. A
+    hook's command is the thing that runs, so that link is EXTRACTED; a path named in an
+    instruction or a workflow file is INFERRED."""
+    root = next((g.get("root") or g.get("target") for g in graphs.values() if g.get("root") or g.get("target")), "")
+
+    def add(node_id, label, kind, concern, source_file):
+        nodes[node_id] = {
+            "id": node_id, "label": label, "file_type": "agentic", "source_file": source_file, "kind": kind,
+            "source_class": None, "concerns": [concern], "evidence_stage": "structural", "primary_concern": concern,
+        }
+        return node_id
+
+    def link(a, b, relation, basis, concern, score=None):
+        links.append({"source": a, "target": b, "relation": relation, "confidence": basis,
+                      "confidence_score": score or (1.0 if basis == "EXTRACTED" else INFERRED_SCORE),
+                      "source_file": nodes[a]["source_file"], "concern": concern})
+
+    def names(owner, rel, concern, relation="names", basis="INFERRED", score=0.75, text=None):
+        for target in path_targets(text if text is not None else read_target_text(root, rel), nodes):
+            if target != rel:
+                link(owner, target, relation, basis, concern, score)
+
+    for concern in ("agent", "skill", "workflow"):
+        for finding in (graphs.get(concern) or {}).get("findings") or []:
+            data, rel = finding.get("extracted") or {}, finding.get("file")
+            if finding.get("evidence_stage") not in EVIDENCED or rel not in nodes or not data:
+                continue
+            if concern in ("agent", "skill") and data.get("name"):
+                owner = add(f"{concern}:{data['name']}", str(data["name"]), concern, concern, rel)
+                link(rel, owner, "defines", "EXTRACTED", concern)
+                for tool in [t.strip() for t in str(data.get("tools") or "").split(",") if t.strip()]:
+                    tool_id = f"tool:{tool}"
+                    if tool_id not in nodes:
+                        add(tool_id, tool, "tool", "agent", "")
+                    link(owner, tool_id, "may_use", "EXTRACTED", concern)
+                names(owner, rel, concern)
+            for index, row in enumerate(data.get("hook_rows") or []):
+                label = str(row.get("event")) + (f" [{row['matcher']}]" if row.get("matcher") else "")
+                owner = add(f"hook:{rel}:{row.get('event')}:{index}", label, "hook", "workflow", rel)
+                nodes[owner]["command"] = row.get("command")
+                link(rel, owner, "binds", "EXTRACTED", "workflow")
+                names(owner, rel, "workflow", relation="runs", basis="EXTRACTED", score=1.0,
+                      text=str(row.get("command") or ""))
+            if data.get("trigger") and not data.get("hook_rows"):
+                owner = add(f"workflow:{rel}", str(data.get("name") or file_label(rel)), "workflow", "workflow", rel)
+                nodes[owner]["trigger"] = data.get("trigger")
+                link(rel, owner, "defines", "EXTRACTED", "workflow")
+                names(owner, rel, "workflow", relation="runs", score=0.85)
+
+
+def node_layer(node):
+    if node["kind"] in AGENTIC_KINDS:
+        return "actors"
+    if node["kind"] in ("function", "class", "symbol") or node.get("code_community") is not None:
+        return "code"
+    return "outside" if node["kind"] == "boundary" else "asset"
+
+
+def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_by="concern", code_dir=None):
     """The node-link graph for a loaded scan. Pure: no I/O."""
     asset_kinds = asset_kinds or {}
     stages = best_stages(graphs)
     primary = primary_concerns(graphs, stages, asset_kinds)
     nodes, links = {}, []
-    skipped = {"stdlib_imports": 0, "markers": 0, "long_targets": 0, "junk_pointers": 0, "merged_pointers": 0}
+    skipped = {"stdlib_imports": 0, "markers": 0, "long_targets": 0, "junk_pointers": 0, "merged_pointers": 0,
+               "scan_imports_replaced": 0, "code_links_leaving_root": 0}
 
     for concern, graph in graphs.items():
         for node in graph.get("nodes") or []:
@@ -243,6 +439,10 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
                 "confidence_score": score, "source_file": src, "concern": concern,
             })
 
+    if code_dir:
+        links = merge_code(nodes, links, skipped, code_dir)
+    agentic_layer(nodes, links, graphs)
+
     pointer_ids, pointed = {}, set()
     for pointer in patterns.get("boundary_pointers") or []:
         path = clean_pointer(str(pointer.get("reference")))
@@ -283,6 +483,7 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
         node["concerns"] = sorted(node["concerns"])
         concern = node["primary_concern"]
         node["asset_kind"] = concern if concern == BOUNDARY_COMMUNITY else asset_kinds.get(concern, SYSTEM_DESCRIPTION)
+        node["layer"] = node_layer(node)
     key = "asset_kind" if group_by == "asset" else "primary_concern"
     names = sorted({n[key] for n in nodes.values()})
     index = {name: i for i, name in enumerate(names)}
@@ -296,6 +497,8 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
         "nodes": [nodes[key] for key in sorted(nodes)],
         "links": links,
     }
+    graph["graph"]["root"] = next((g.get("root") or g.get("target") for g in graphs.values()
+                                   if g.get("root") or g.get("target")), None)
     graph["graph"]["hyperedges"] = hyperedges(graph)
     graph["graph"]["partitions"] = partition_stats(graph)
     return graph
@@ -362,18 +565,24 @@ def partition_stats(graph):
         "concern": {node["id"]: node["primary_concern"] for node in graph["nodes"]},
         "asset kind": {node["id"]: node["asset_kind"] for node in graph["nodes"]},
     }
-    detected = detected_partition(graph)
-    if detected is not None:
-        partitions["detected (Louvain)"] = detected
+    if any(node.get("code_community") is not None for node in graph["nodes"]):
+        partitions["code community (Leiden, graphify)"] = {
+            node["id"]: node["code_community"] if node.get("code_community") is not None else "not code"
+            for node in graph["nodes"]}
+    else:
+        detected = detected_partition(graph)
+        if detected is not None:
+            partitions["detected (Louvain)"] = detected
+    draws_wanted = max(50, min(NULL_DRAWS, MAX_SHUFFLE_WORK // max(1, len(weights) * len(partitions))))
     stats = {}
     for name, group_of in partitions.items():
-        row = {"groups": len(set(group_of.values())), "links": total, "modularity": None,
+        row = {"groups": len(set(group_of.values())), "links": total, "shuffles": draws_wanted, "modularity": None,
                "null_mean": None, "null_sd": None, "z": None, "p": None}
         if total and row["groups"] > 1:
             observed = modularity(weights, degree, total, group_of)
             rng, ids, labels = random.Random(0), sorted(group_of), [group_of[k] for k in sorted(group_of)]
             draws = []
-            for _ in range(NULL_DRAWS):
+            for _ in range(draws_wanted):
                 rng.shuffle(labels)
                 draws.append(modularity(weights, degree, total, dict(zip(ids, labels))))
             mean = sum(draws) / len(draws)
@@ -385,6 +594,131 @@ def partition_stats(graph):
             })
         stats[name] = row
     return stats
+
+
+def load_claims(audit_path):
+    """unit -> its claims, each with where it stands and its verdict, from an audit ledger."""
+    import audit as audit_mod
+    by_unit = {}
+    for claim in read_json(audit_path)["claims"]:
+        if not claim.get("unit") or claim.get("validates"):
+            continue
+        verdict = claim["stages"]["verdict"][-1]["verdict"] if claim["stages"]["verdict"] else None
+        by_unit.setdefault(claim["unit"], []).append({
+            "id": claim["id"], "statement": claim["statement"], "state": audit_mod.claim_state(claim),
+            "verdict": verdict, "source": claim["source"]})
+    return by_unit
+
+
+def claims_report(graph):
+    claims = graph["graph"].get("claims") or {}
+    if not claims:
+        return []
+    out = ["## What the analysis claims", "", "| Unit | Claim | Verdict | Stands at | Statement |", "|---|---|---|---|---|"]
+    for unit in sorted(claims):
+        for claim in claims[unit]:
+            out.append(f"| `{unit}` | {claim['id']} | {claim['verdict'] or ''} | {claim['state']} | {claim['statement']} |")
+    return out + [""]
+
+
+def layer_report(graph):
+    """The three layers and what the code and agentic passes found, as report lines."""
+    nodes, links = graph["nodes"], graph["links"]
+    by_id = {node["id"]: node for node in nodes}
+    out = ["## Layers", "", "| Layer | Nodes | Of which |", "|---|---|---|"]
+    for layer in ("actors", "code", "asset", "outside"):
+        members = [n for n in nodes if n["layer"] == layer]
+        kinds = {}
+        for node in members:
+            kinds[node["kind"]] = kinds.get(node["kind"], 0) + 1
+        detail = ", ".join(f"{count} {kind}" for kind, count in sorted(kinds.items(), key=lambda i: (-i[1], i[0])))
+        out.append(f"| {layer} | {len(members)} | {detail} |")
+    crossing = {}
+    for link in links:
+        pair = (by_id[link["source"]]["layer"], by_id[link["target"]]["layer"])
+        if pair[0] != pair[1]:
+            crossing[pair] = crossing.get(pair, 0) + 1
+    if crossing:
+        out += ["", "Links from one layer to another: " + "; ".join(
+            f"{a} to {b} {count}" for (a, b), count in sorted(crossing.items(), key=lambda i: -i[1])) + "."]
+    out.append("")
+    agentic = [n for n in nodes if n["kind"] in ("agent", "skill", "hook", "workflow")]
+    if agentic:
+        reach = {}
+        for link in links:
+            if by_id[link["source"]]["kind"] in ("agent", "skill", "hook", "workflow") \
+                    and by_id[link["target"]]["kind"] == "file":
+                reach.setdefault(link["source"], []).append((link["relation"], link["confidence"], link["target"]))
+        out += ["## Actors and triggers", "", "| Kind | Name | Defined in | Reaches |", "|---|---|---|---|"]
+        for node in sorted(agentic, key=lambda n: (n["kind"], n["label"])):
+            rows = reach.get(node["id"], [])
+            shown = ", ".join(f"{relation} `{target}` ({basis})" for relation, basis, target in rows[:3])
+            if len(rows) > 3:
+                shown += f" and {len(rows) - 3} more"
+            out.append(f"| {node['kind']} | {node['label']} | `{node['source_file']}` | {shown or 'no scanned file'} |")
+        out.append("")
+    definitions = [n for n in nodes if n["kind"] in ("function", "class", "symbol")]
+    if definitions:
+        relations = {}
+        for link in links:
+            if by_id[link["source"]]["layer"] == "code" and by_id[link["target"]]["layer"] == "code":
+                row = relations.setdefault(link["relation"], {"EXTRACTED": 0, "INFERRED": 0})
+                row[link["confidence"]] += 1
+        counts = {}
+        for node in definitions:
+            counts[node["kind"]] = counts.get(node["kind"], 0) + 1
+        modules = sum(1 for n in nodes if n["kind"] == "file" and n.get("code_community") is not None)
+        out += ["## Code, parsed", "",
+                f"{modules} modules, " + ", ".join(f"{count} {kind}s" if kind != "class" else f"{count} classes"
+                                                    for kind, count in sorted(counts.items(), key=lambda i: -i[1]))
+                + f", in {len({n.get('code_community') for n in nodes if n.get('code_community') is not None})} "
+                "communities found from the links alone.", "",
+                "| Relation | EXTRACTED | INFERRED |", "|---|---|---|"]
+        for relation in sorted(relations, key=lambda k: -sum(relations[k].values())):
+            out.append(f"| {relation} | {relations[relation]['EXTRACTED']} | {relations[relation]['INFERRED']} |")
+        called = {}
+        for link in links:
+            if link["relation"] in ("calls", "indirect_call") and by_id[link["target"]]["kind"] in ("function", "class"):
+                called[link["target"]] = called.get(link["target"], 0) + 1
+        out += ["", "Most called: " + "; ".join(
+            f"`{by_id[k]['label']}` in `{by_id[k]['source_file']}` ({called[k]})"
+            for k in sorted(called, key=lambda k: (-called[k], k))[:8]) + ".", ""]
+        linted = [n for n in nodes if n.get("lint")]
+        if linted:
+            codes, files = {}, {}
+            for node in linted:
+                if node["kind"] == "file":
+                    files[node["id"]] = sum(node["lint"].values())
+                    for code, count in node["lint"].items():
+                        codes[code] = codes.get(code, 0) + count
+            held = sorted((n for n in linted if n["kind"] != "file"), key=lambda n: -sum(n["lint"].values()))
+            out += ["## Lint", "",
+                    f"{sum(files.values())} findings in {len(files)} files. By rule: " + ", ".join(
+                        f"{code} {count}" for code, count in sorted(codes.items(), key=lambda i: -i[1])[:8]) + ".", "",
+                    "Files with the most: " + "; ".join(
+                        f"`{rel}` ({count})" for rel, count in sorted(files.items(), key=lambda i: -i[1])[:6]) + ".", "",
+                    "Definitions with the most: " + "; ".join(
+                        f"`{n['label']}` in `{n['source_file']}` ({sum(n['lint'].values())})" for n in held[:6]) + ".", ""]
+    declared = [n for n in nodes if n.get("declared")]
+    if declared:
+        # An import names a package by its first segment (two for a scoped npm name); a
+        # relative import names a file of the target's own, not a package.
+        imported = set()
+        for link in links:
+            name = by_id[link["target"]]["label"]
+            if link["relation"] in SCAN_IMPORT_KINDS and by_id[link["target"]]["kind"] == "external" \
+                    and name and not name.startswith((".", "/", "node:")):
+                parts = name.split("/")
+                imported.add(package_key("/".join(parts[:2]) if name.startswith("@") else parts[0].split(".")[0]))
+        declared_keys = {package_key(n["label"]) for n in declared}
+        unused = sorted(n["label"] for n in declared if package_key(n["label"]) not in imported)
+        undeclared = sorted(imported - declared_keys)
+        out += ["## Dependencies", "",
+                f"{len(declared)} packages declared in manifests; {len(imported)} external names imported.", "",
+                f"Declared and not seen imported ({len(unused)}): {', '.join(unused[:25]) or 'none'}.", "",
+                f"Imported and not declared ({len(undeclared)}): {', '.join(undeclared[:25]) or 'none'}.", "",
+                "A package whose import name differs from its distribution name shows in both lists.", ""]
+    return out
 
 
 def degrees(graph):
@@ -415,6 +749,8 @@ def render_report(graph, target):
             f"{skipped['long_targets']} captured values too long to be a target, "
             f"{skipped['junk_pointers']} outside-the-root pointers that name nothing "
             f"({skipped['merged_pointers']} more merged as second spellings of one path)", ""]
+    out += claims_report(graph)
+    out += layer_report(graph)
     out += ["## Most connected", ""]
     for node_id in sorted(degree, key=lambda k: (-degree[k], k))[:10]:
         if degree[node_id]:
@@ -436,8 +772,9 @@ def render_report(graph, target):
         for pair in sorted(cross, key=lambda p: (-cross[p], p)):
             out.append(f"- {pair[0]} and {pair[1]}: {cross[pair]}")
     out += ["", "## Which grouping the links support", "",
-            f"Modularity of each grouping over the {len(links)} links, against {NULL_DRAWS} shuffles of the same "
-            "group sizes. The detected grouping is fitted to these links, so its score is a ceiling, not a test.", "",
+            f"Modularity of each grouping over the {len(links)} links, against "
+            f"{next(iter(graph['graph']['partitions'].values()))['shuffles']} shuffles of the same group sizes. "
+            "A grouping detected from these links is fitted to them, so its score is a ceiling, not a test.", "",
             "| Grouping | Groups | Modularity | Shuffled mean | Shuffled sd | z | p |", "|---|---|---|---|---|---|---|"]
     for name, row in graph["graph"]["partitions"].items():
         out.append(f"| {name} | {row['groups']} | {row['modularity']} | {row['null_mean']} | {row['null_sd']} | "
@@ -562,6 +899,98 @@ def graph_to_overview(graph, title):
     }
 
 
+def code_overview(graph, title):
+    """The parsed code at the height of its communities: the largest as cards named for
+    their busiest definition and the folder most of them sit in, wired by the calls,
+    imports and uses that cross between them."""
+    by_id = {node["id"]: node for node in graph["nodes"]}
+    members, degree = {}, degrees(graph)
+    for node in graph["nodes"]:
+        if node.get("code_community") is not None:
+            members.setdefault(node["code_community"], []).append(node)
+    if not members:
+        return None
+    chosen = sorted(members, key=lambda c: (-len(members[c]), c))[:CODE_CARDS]
+    cards = []
+    for community in chosen:
+        rows = members[community]
+        folders = {}
+        for node in rows:
+            folder = os.path.dirname(node["source_file"]) or "."
+            folders[folder] = folders.get(folder, 0) + 1
+        folder = max(sorted(folders), key=lambda f: folders[f])
+        top = max(sorted(rows, key=lambda n: n["id"]), key=lambda n: degree[n["id"]])
+        lint = sum(sum(n["lint"].values()) for n in rows if n.get("lint") and n["kind"] != "file")
+        claims = (graph["graph"].get("claims") or {}).get(f"code-{community}") or []
+        verdicts = ", ".join(f"{c['id']} {c['verdict'] or c['state']}" for c in claims)
+        cards.append({"id": f"code-{community}", "symbolId": "act", "config": {
+            "label": f"{folder}: {top['label']} ({len(rows)})" + (f" [{len(claims)} claims]" if claims else ""),
+            "subtitle": (verdicts + ", " if verdicts else "") + f"{len(folders)} folders"
+                        + (f", {lint} lint findings" if lint else "")}})
+    between = {}
+    for link in graph["links"]:
+        if link["relation"] in STRUCTURAL_RELATIONS:
+            continue
+        a, b = by_id[link["source"]].get("code_community"), by_id[link["target"]].get("code_community")
+        if a is None or b is None or a == b or a not in chosen or b not in chosen:
+            continue
+        row = between.setdefault((a, b), {})
+        row[link["relation"]] = row.get(link["relation"], 0) + 1
+    wires = []
+    for (a, b), row in sorted(between.items(), key=lambda i: (-sum(i[1].values()), i[0]))[:CODE_WIRES]:
+        top = max(sorted(row), key=lambda r: row[r])
+        wires.append({"id": f"w-code-{a}-code-{b}", "a": f"code-{a}", "aSide": "out", "b": f"code-{b}", "bSide": "in",
+                      "canvasId": CANVAS, "config": {"label": wire_label(f"{sum(row.values())} {top}"),
+                                                     "basis": "EXTRACTED"}})
+    return {"schema": SCHEMA, "id": "system-cartographer-code", "revision": 0,
+            "meta": {"title": f"{title}: code, {len(chosen)} largest of {len(members)} communities"},
+            "references": [], "components": cards, "wires": wires}
+
+
+def agentic_overview(graph, title):
+    """Who acts and what it runs: every agent, skill, hook and workflow as a card, the
+    tools agents are granted, and the files their commands and instructions name."""
+    by_id = {node["id"]: node for node in graph["nodes"]}
+    actors = [n for n in graph["nodes"] if n["kind"] in AGENTIC_KINDS]
+    if not actors:
+        return None
+    symbols = {"agent": "act", "skill": "buffer", "hook": "gate", "workflow": "clock", "tool": "hold"}
+    used, card_of, cards, wires, wire_ids = set(), {}, [], [], set()
+
+    def card(node, symbol, subtitle):
+        if node["id"] not in card_of:
+            card_of[node["id"]] = card_id(node["id"], used)
+            cards.append({"id": card_of[node["id"]], "symbolId": symbol,
+                          "config": {"label": node["label"], "subtitle": subtitle}})
+        return card_of[node["id"]]
+
+    # A tool is granted to most agents, so drawn as a card it is all wires: it goes in the subtitle.
+    tools = {}
+    for link in graph["links"]:
+        if link["relation"] == "may_use":
+            tools.setdefault(link["source"], []).append(by_id[link["target"]]["label"])
+    for node in actors:
+        if node["kind"] == "tool":
+            continue
+        granted = f", may use {', '.join(sorted(tools[node['id']]))}" if node["id"] in tools else ""
+        card(node, symbols[node["kind"]], f"{node['kind']}, {node['source_file']}{granted}")
+    for link in graph["links"]:
+        source, target = by_id[link["source"]], by_id[link["target"]]
+        if source["kind"] not in AGENTIC_KINDS or "tool" in (source["kind"], target["kind"]):
+            continue
+        if target["kind"] not in AGENTIC_KINDS:
+            if target["kind"] != "file":
+                continue
+            card(target, "ground", f"{target['primary_concern']}, {target['source_file']}")
+        a, b = card_of[source["id"]], card_of[target["id"]]
+        wires.append({"id": card_id(f"w-{a}-{b}-{link['relation']}", wire_ids), "a": a, "aSide": "out", "b": b,
+                      "bSide": "in", "canvasId": CANVAS,
+                      "config": {"label": wire_label(link["relation"]), "basis": link["confidence"]}})
+    return {"schema": SCHEMA, "id": "system-cartographer-actors", "revision": 0,
+            "meta": {"title": f"{title}: agents, skills, hooks and workflows"},
+            "references": [], "components": cards, "wires": wires}
+
+
 def write_sov(document, path, schematically_dir=None, node="node"):
     """Write the document; lay it out first when a Schematically checkout is given."""
     text = json.dumps(document, indent=1, ensure_ascii=False) + "\n"
@@ -603,6 +1032,13 @@ def main():
                              "(default: every *.registry.json beside this skill's references)")
     parser.add_argument("--group-by", choices=GROUPINGS, default="concern",
                         help="what a community is: a concern, or an asset kind (the system description is one)")
+    parser.add_argument("--code-dir", default=None,
+                        help="the --out-dir of a code_graph.py run: merges parsed functions, classes, calls and "
+                             "imports, lint findings and declared dependencies into the map")
+    parser.add_argument("--audit", default=None,
+                        help="an audit.json: puts each unit's claims and verdicts on the map and in the report")
+    parser.add_argument("--full-document", action="store_true",
+                        help=f"write system.sov even above {FULL_DOCUMENT_NODES} nodes")
     parser.add_argument("--include-stdlib", action="store_true", help="keep standard-library imports as links")
     parser.add_argument("--title", default=None, help="the document title (default: the scanned target's folder name)")
     args = parser.parse_args()
@@ -616,21 +1052,37 @@ def main():
     registries = args.registry or sorted(
         os.path.join(references, name) for name in os.listdir(references) if name.endswith(".registry.json"))
     graph = build_graph(graphs, patterns, include_stdlib=args.include_stdlib,
-                        asset_kinds=load_asset_kinds(registries), group_by=args.group_by)
+                        asset_kinds=load_asset_kinds(registries), group_by=args.group_by,
+                        code_dir=args.code_dir)
+    if args.audit:
+        graph["graph"]["claims"] = load_claims(args.audit)
     graph_path = os.path.join(args.out_dir, "graph.json")
     report_path = os.path.join(args.out_dir, "GRAPH_REPORT.md")
     sov_path = os.path.join(args.out_dir, "system.sov")
     write_text(graph_path, json.dumps(graph, indent=2, ensure_ascii=False) + "\n")
     write_text(report_path, render_report(graph, title))
-    document = graph_to_sov(graph, title)
-    laid_out = write_sov(document, sov_path, args.schematically)
+    laid_out, documents = False, {}
+    if len(graph["nodes"]) <= FULL_DOCUMENT_NODES or args.full_document:
+        laid_out = write_sov(graph_to_sov(graph, title), sov_path, args.schematically)
+    else:
+        # Too many nodes to read as one drawing; an older system.sov here would describe another graph.
+        if os.path.exists(sov_path):
+            os.unlink(sov_path)
+        sov_path = None
     overview_path = os.path.join(args.out_dir, "system-overview.sov")
-    write_sov(graph_to_overview(graph, title), overview_path, args.schematically)
+    laid_out = write_sov(graph_to_overview(graph, title), overview_path, args.schematically) or laid_out
+    for name, document in (("system-actors.sov", agentic_overview(graph, title)),
+                           ("system-code.sov", code_overview(graph, title))):
+        if document is not None:
+            documents[name] = os.path.join(args.out_dir, name)
+            write_sov(document, documents[name], args.schematically)
     basis = {"EXTRACTED": 0, "INFERRED": 0}
     for link in graph["links"]:
         basis[link["confidence"]] += 1
     json.dump({
-        "graph": graph_path, "report": report_path, "sov": sov_path, "overview": overview_path,
+        "graph": graph_path, "report": report_path, "sov": sov_path, "overview": overview_path, **documents,
+        "layers": {layer: sum(1 for n in graph["nodes"] if n["layer"] == layer)
+                   for layer in ("actors", "code", "asset", "outside")},
         "laid_out": laid_out,
         "nodes": len(graph["nodes"]), "links": len(graph["links"]), "basis": basis,
         "communities": len(graph["graph"]["community_labels"]), "grouped_by": args.group_by,

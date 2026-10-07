@@ -14,6 +14,9 @@
     validation     a second claim record, by a different actor, walked through the same
                    stages; agreement validates the first, disagreement reopens it
 
+A claim may come from the builder, from the scan, or from an agent analysing one unit of
+the map (--source agent --unit <unit>; see analysis_packets.py).
+
     <run>/
       audit.json   the claims and every entry (source of truth)
       AUDIT.md     the view, regenerated on every write -- never hand-edit it
@@ -37,7 +40,10 @@ import argparse
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
+
+LOCK_WAIT_SECONDS = 30
 
 STAGES = ["intake", "findings", "evidence", "conflicts", "organization", "refutation",
           "judgement", "verdict", "qualification", "settle", "validation"]
@@ -46,7 +52,7 @@ VERDICTS = ["confirmed", "drift", "undocumented", "unevidenced", "aspiration"]
 BASES = ["EXTRACTED", "INFERRED"]
 OUTCOMES = ["survived", "defeated"]
 DISPOSITIONS = ["accepted", "repair", "deferred", "dropped"]
-SOURCES = ["builder", "scan", "validation"]
+SOURCES = ["builder", "scan", "agent", "validation"]
 # The fields an entry must carry, by stage.
 REQUIRED = {
     "findings": ["ref"], "evidence": ["ref", "basis"], "conflicts": ["text"], "organization": ["group"],
@@ -87,10 +93,10 @@ def _claim(audit, claim_id):
     sys.exit(f"no such claim: {claim_id}")
 
 
-def _new_claim(audit, statement, concern, source, actor, validates=None):
+def _new_claim(audit, statement, concern, source, actor, validates=None, unit=None):
     claim = {
         "id": f"c{len(audit['claims']) + 1}", "statement": statement, "concern": concern, "source": source,
-        "validates": validates, "round": 1, "history": [],
+        "validates": validates, "unit": unit, "round": 1, "history": [],
         "stages": {stage: [] for stage in STAGES},
     }
     claim["stages"]["intake"].append({"actor": actor, "at": _now(), "text": statement})
@@ -185,7 +191,8 @@ def _write_view(run, audit):
              "|---|---|---|---|---|---|---|"]
     for claim in audit["claims"]:
         verdict = claim["stages"]["verdict"][-1]["verdict"] if claim["stages"]["verdict"] else ""
-        name = claim["id"] + (f" (validates {claim['validates']})" if claim["validates"] else "")
+        name = claim["id"] + (f" (validates {claim['validates']})" if claim["validates"] else "") \
+            + (f" on `{claim['unit']}`" if claim.get("unit") else "")
         lines.append(f"| {name} | {claim['source']} | {claim['concern']} | {claim['round']} | "
                      f"{claim_state(claim)} | {verdict} | {claim['statement']} |")
     open_conflicts = [(c["id"], e["text"]) for c in audit["claims"] for e in c["stages"]["conflicts"]
@@ -205,9 +212,9 @@ def cmd_init(run, actor):
     print(f"initialized audit at {run}")
 
 
-def cmd_intake(run, actor, statement, concern, source):
+def cmd_intake(run, actor, statement, concern, source, unit=None):
     audit = _load(run)
-    claim = _new_claim(audit, statement, concern, source, actor)
+    claim = _new_claim(audit, statement, concern, source, actor, unit=unit)
     _save(run, audit)
     print(f"{claim['id']}: intake recorded -- next: findings")
 
@@ -264,7 +271,8 @@ def cmd_validate(run, claim_id, actor):
     judges = {e["actor"] for stage in ("judgement", "verdict") for e in original["stages"][stage]}
     if actor in judges:
         sys.exit(f"cannot validate {claim_id} as {actor}: {actor} judged it. Validation needs a different actor.")
-    check = _new_claim(audit, original["statement"], original["concern"], "validation", actor, validates=claim_id)
+    check = _new_claim(audit, original["statement"], original["concern"], "validation", actor,
+                       validates=claim_id, unit=original.get("unit"))
     _save(run, audit)
     print(f"{check['id']}: opened to validate {claim_id} -- walk it from findings to verdict without "
           f"reading {claim_id}'s entries; its verdict is compared with {claim_id}'s")
@@ -295,7 +303,10 @@ def main():
     p.add_argument("--actor", required=True)
     p.add_argument("--statement", required=True)
     p.add_argument("--concern", required=True)
-    p.add_argument("--source", choices=SOURCES[:2], default="builder")
+    p.add_argument("--source", choices=SOURCES[:3], default="builder",
+                   help="who the claim came from: the builder's belief, the scan, or an analysing agent")
+    p.add_argument("--unit", default=None,
+                   help="the unit of the map the claim is about, from analysis_packets.py (code-12, actor-..., asset-...)")
 
     p = sub.add_parser("seed")
     p.add_argument("--run", required=True)
@@ -328,10 +339,30 @@ def main():
     sub.add_parser("status").add_argument("--run", required=True)
 
     args = ap.parse_args()
+    # Several agents record into one ledger; each command reads, changes and writes the
+    # whole file, so one command holds the ledger at a time.
+    os.makedirs(args.run, exist_ok=True)
+    lock = os.path.join(args.run, "audit.lock")
+    deadline = time.time() + LOCK_WAIT_SECONDS
+    while True:
+        try:
+            os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            break
+        except FileExistsError:
+            if time.time() > deadline:
+                sys.exit(f"the ledger is held by another command ({lock}); if none is running, delete that file")
+            time.sleep(0.1)
+    try:
+        dispatch(args)
+    finally:
+        os.unlink(lock)
+
+
+def dispatch(args):
     if args.cmd == "init":
         cmd_init(args.run, args.actor)
     elif args.cmd == "intake":
-        cmd_intake(args.run, args.actor, args.statement, args.concern, args.source)
+        cmd_intake(args.run, args.actor, args.statement, args.concern, args.source, args.unit)
     elif args.cmd == "seed":
         cmd_seed(args.run, args.actor, args.scan_dir)
     elif args.cmd == "record":

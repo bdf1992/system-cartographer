@@ -285,6 +285,79 @@ conflicts and refutation attempts; the judgement, the verdict and the settlement
 recorded under the name of whoever actually made them. Never settle on the owner's
 behalf.
 
+## Code, parsed
+
+The scan sorts files by pattern. It does not read code. `scripts/code_graph.py` does, by
+handing the scanned code files to graphify's tree-sitter extractor (the parse `graphify
+update` runs; no model is involved):
+
+```bash
+python scripts/code_graph.py --scan-dir "$RUN/scan" --out-dir "$RUN/code"
+python scripts/graph_export.py --scan-dir "$RUN/scan" --code-dir "$RUN/code" --out-dir "$RUN/graph"
+```
+
+- **Nodes.** Every function, class and module-level symbol is a node under the file that
+  holds it; a module is its file node. On a 711-file root that was 13,160 functions and
+  2,480 classes.
+- **Links.** `calls`, `imports`, `imports_from`, `inherits`, `references`, `uses`,
+  `indirect_call`, `contains`, `method`, each `EXTRACTED` when read off the source and
+  `INFERRED` when resolved across files. They replace the scan's own file-to-file import
+  guesses.
+- **Communities.** Leiden groups the definitions from the links alone. The export tests
+  that grouping against shuffles beside the concern and asset groupings, and writes
+  `system-code.sov`: the largest communities as cards named for their folder and busiest
+  definition, wired by the calls, imports and uses that cross between them.
+- **Lint.** `ruff check` runs over the Python files under the target's own configuration,
+  fixing nothing and writing no cache. Each finding lands on the definition it falls
+  inside, else on its file. The report lists the rules, files and definitions with most.
+- **Dependencies.** What `pyproject.toml`, `requirements*.txt` and `package.json` declare
+  is set against what the code imports: declared and never imported, imported and never
+  declared. A package whose import name differs from its distribution name shows in both.
+
+Nothing is written into the target; graphify's cache goes under `--out-dir`. It needs
+`graphify` importable (`pip install graphifyy`, or the schematify fork on `PYTHONPATH`);
+`ruff` is optional and its absence is stated in `lint.json`. Above 2,500 nodes the full
+`system.sov` is not written, because it cannot be read; the overviews are.
+
+## Actors and triggers
+
+With or without the code pass, the export lifts the scan's structural findings into nodes
+of their own: each agent definition (with the tools it is granted), each skill, each hook
+binding and each workflow. Each is then joined to the scanned files its command or its
+text names by path. A hook's command is the thing that runs, so that link is `EXTRACTED`;
+a path named in an instruction or a workflow file is `INFERRED`. With the code pass merged
+this is where an actor meets the functions it executes. `system-actors.sov` draws them.
+Every node carries a `layer`: `actors`, `code`, `asset` or `outside`.
+
+## Agent analysis
+
+The parse says what is there. What a cluster is for, whether it does what its name says,
+and what is wrong with it is analysis, and agents do it, one unit at a time, with every
+conclusion recorded as a claim in the audit below.
+
+```bash
+python scripts/analysis_packets.py --graph "$RUN/graph/graph.json" --run "$RUN"
+```
+
+That cuts the map into units and writes one packet per unit under `$RUN/analysis/packets`:
+the largest code communities (`code-<n>`), each actor (`actor-<name>`), each asset group
+(`asset-<kind>`). A packet holds the unit's members with files and lines, the links inside
+it, what it reaches and what reaches it by neighbouring unit, its lint, and the questions
+to answer. `references/analysis-brief.md` is the instruction for the three roles:
+
+- **Analyst**, one per packet, in parallel: reads the packet, then the source, and records
+  one to three claims with `audit.py intake --source agent --unit <unit>`, walking each to
+  qualification. The refutation must be a check it ran.
+- **Lead**, the session running the audit: settles each qualified claim as accepted,
+  repair, deferred or dropped.
+- **Validator**, a different agent given only the statement: walks its own record to a
+  verdict. Agreement validates the claim; a different verdict reopens it.
+
+Launch each analyst and validator as its own agent with the brief, the packet path and an
+actor name; the ledger takes one command at a time, so they can run together. Then
+`graph_export.py --audit "$RUN/audit.json"` puts each unit's claims and verdicts on the
+map and in the report. Give the strongest model to the validator, not the analyst.
+
 ## Graph and schematic
 
 After any scan, `scripts/graph_export.py` turns the scan directory into one graph and
