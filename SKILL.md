@@ -425,16 +425,23 @@ python scripts/graph_query.py measure             --index ...
   For a file it is the impact of the file and of everything it holds.
 - **search** ranks an exact name first, then a prefix, a part, a path; among equals, the
   one more things depend on. Every hit says what it is, where, and its impact.
-- **measure** prints the graph's own numbers: how many definitions have a name nothing
-  else shares (can be found by name alone), how many a test reaches through calls, how
-  many nothing refers to, the median and 90th-centile count of direct users, the most
-  used, and the share of dependencies that are inferred.
+- **measure** prints the graph's own numbers for the target's own code outside tests
+  (declaration, vendored and generated files are left out), each with what it can show:
+  how many definitions have a name nothing else shares; test reach as a range, per top
+  folder; how many definitions have no link found; the median and 90th-centile count of
+  direct users; the most used; and the share of dependencies that are inferred.
 
-Read the numbers for what they are. Impact follows file-level imports as well as calls,
-so it is what a change *can* reach, an upper bound, not what it will break. "Reached by a
-test" follows calls and uses from test code and so misses what a test touches only
-through a framework. "Nothing refers to it" cannot see dynamic dispatch: a command
-handler looked up by name is used and will be listed as unused.
+Read the numbers for what they are, and never show one as a verdict on a codebase:
+
+- **Impact is an upper bound.** It follows file-level imports as well as calls, so it is
+  what a change *can* reach, not what it will break.
+- **Test reach is a range.** The lower figure counts a definition a test reaches through
+  calls and misses what is exercised through an import or a framework. The upper counts
+  any definition in a file a test can reach. The first run of this measure printed only
+  the lower figure, 35%, for a kernel whose upper figure is 92%.
+- **"No link found" is not "unused".** `measure` samples those definitions and looks each
+  name up in the source. On that same run 58 of 60 sampled were named in another file:
+  the parse had missed the link. The check is printed beside the count for that reason.
 
 ### Wrapping an agent's own search
 

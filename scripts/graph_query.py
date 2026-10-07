@@ -38,8 +38,13 @@ from collections import deque
 STRUCTURAL = frozenset({"contains", "method", "defines", "binds", "rationale_for", "points_outside_root",
                         "declares", "may_use"})
 _TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/.]+$|\.(test|spec)\.[^/]+$")
-_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
+# Code the target holds but did not write: type declarations, vendored and generated files.
+_NOT_OWN = re.compile(r"\.d\.ts$|(^|/)(vendor|vendored|third_party|node_modules|dist|generated)/")
 DEPTHS = 3
+CHECK_SAMPLE = 60
+CHECK_FILE_BYTES = 2_000_000
+CHECK_EXTENSIONS = frozenset({".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".sh", ".ps1", ".cmd", ".toml",
+                              ".yml", ".yaml", ".md", ".html"})
 
 
 def read_json(path):
@@ -85,6 +90,7 @@ def build_index(graph):
             "group": node.get("asset_kind") or node.get("primary_concern") or "",
             "cluster": f"code-{community}" if community is not None else "",
             "test": is_test(source), "lint": sum((node.get("lint") or {}).values()),
+            "own": not (node.get("source_class") in ("vendor", "generated") or _NOT_OWN.search(source.replace("\\", "/"))),
         })
     names = {}
     for i, row in enumerate(rows):
@@ -194,12 +200,13 @@ def one_line(record):
     plural = lambda n, word: f"{n} {word}" + ("" if n == 1 else "s")  # noqa: E731
     text = f"{record['label']} ({record['kind']}, {where}): "
     if not record["impact"]:
-        text += "a test" if record["test"] else "nothing in the map depends on it"
+        # The parse misses links it cannot resolve, so absence here is "not found", never "unused".
+        text += "a test" if record["test"] else "no dependents found in the map"
     else:
         text += (f"used by {record['used_by']} directly, {record['impact']} in all across "
                  f"{plural(record['impact_files'], 'file')}")
         if not record["test"]:
-            text += f"; {plural(record['tests'], 'test file')} can reach it" if record["tests"] else "; no test reaches it"
+            text += f"; {plural(record['tests'], 'test file')} can reach it" if record["tests"] else "; no test file found among them"
     if record["lint"]:
         text += f"; {record['lint']} lint"
     if record["claims"]:
@@ -229,38 +236,101 @@ def shortest_path(index, a, b):
     return None
 
 
-def measure(index):
-    """The graph's own numbers on the four questions: can a thing be found by its name, how far
-    does a change reach, what do tests reach, and what does nothing use."""
+def named_elsewhere(index, ids):
+    """For each definition, is its name written in any scanned file other than its own? Read
+    from the target's files, so it is a check on the graph by a route the graph did not take."""
+    root = index.get("root")
+    if not root or not os.path.isdir(root):
+        return None
     nodes = index["nodes"]
-    definitions = [i for i, n in enumerate(nodes) if n["kind"] in ("function", "class") and not n["test"]]
-    shared = sum(1 for ids in index["names"].values() if len(ids) > 1 for i in ids
-                 if nodes[i]["kind"] in ("function", "class") and not nodes[i]["test"])
-    tested, impacts = 0, []
-    reached_by_test = set()
+    wanted = {}                            # name -> the files that define it, which do not count
+    for i in ids:
+        wanted.setdefault(nodes[i]["label"].lstrip(".").rstrip("()"), set()).add(nodes[i]["file"])
+    pattern = re.compile(r"(?<![A-Za-z0-9_])(" + "|".join(sorted(map(re.escape, wanted), key=len, reverse=True))
+                         + r")(?![A-Za-z0-9_])")
+    seen = set()
+    for rel in index["files"]:             # one pass over the files that can refer to code
+        if os.path.splitext(rel)[1].lower() not in CHECK_EXTENSIONS:
+            continue
+        full = os.path.join(root, rel)
+        try:
+            if os.path.getsize(full) > CHECK_FILE_BYTES:
+                continue
+            with open(full, encoding="utf-8", errors="ignore") as handle:
+                text = handle.read()
+        except OSError:
+            continue
+        seen.update(name for name in set(pattern.findall(text)) if rel not in wanted[name])
+    return sum(1 for i in ids if nodes[i]["label"].lstrip(".").rstrip("()") in seen)
+
+
+def measure(index, check=CHECK_SAMPLE):
+    """The graph's own numbers, each stated as what it can and cannot show.
+
+    Only the target's own code outside tests is counted: declaration, vendored and generated
+    files are left out. Test reach is a range, because the two ways of counting it err in
+    opposite directions. A definition with no link found is not called unused: a sample of
+    them is looked up in the source by name, and the share found there is reported beside
+    the count, since that share is the parse missing a link, not the code missing a user."""
+    nodes = index["nodes"]
+    definitions = [i for i, n in enumerate(nodes)
+                   if n["kind"] in ("function", "class") and not n["test"] and n.get("own", True)]
+    left_out = sum(1 for n in nodes if n["kind"] in ("function", "class") and not n["test"] and not n.get("own", True))
+    reached = set()
     for i, n in enumerate(nodes):          # everything any test depends on, at any depth
         if n["test"]:
-            reached_by_test.update(spread(index, i, index["uses"]))
-    unused = []
+            reached.update(spread(index, i, index["uses"]))
+    reached_files = {nodes[j]["file"] for j in reached if nodes[j]["file"]}
+    by_folder = {}
     for i in definitions:
-        direct = len({j for j, _r, _i in index["used_by"][i]})
-        impacts.append(direct)
-        tested += i in reached_by_test
-        if not direct:
-            unused.append(i)
-    impacts.sort()
+        row = by_folder.setdefault(nodes[i]["file"].split("/")[0], {"definitions": 0, "by_call": 0, "by_file": 0})
+        row["definitions"] += 1
+        row["by_call"] += i in reached
+        row["by_file"] += nodes[i]["file"] in reached_files
+    share = lambda part, whole: round(part / whole, 3) if whole else None  # noqa: E731
+    total = len(definitions)
+    by_call, by_file = sum(r["by_call"] for r in by_folder.values()), sum(r["by_file"] for r in by_folder.values())
+    shared = sum(1 for ids in index["names"].values() if len(ids) > 1 for i in ids if i in set(definitions)) \
+        if total < 50000 else None
+    direct = sorted(len({j for j, _r, _i in index["used_by"][i]}) for i in definitions)
+    no_link = [i for i in definitions if not index["used_by"][i]]
+    sample = sorted(no_link, key=lambda i: (hash_of(nodes[i]["label"] + nodes[i]["file"]), i))[:check]
+    elsewhere = named_elsewhere(index, sample) if sample else None
     widest = sorted(definitions, key=lambda i: -len(index["used_by"][i]))[:10]
     return {
-        "definitions_outside_tests": len(definitions),
-        "name_is_unique": len(definitions) - shared, "name_is_shared": shared,
-        "reached_by_a_test": tested, "not_reached_by_any_test": len(definitions) - tested,
-        "used_by_nothing": len(unused),
-        "direct_users_median": impacts[len(impacts) // 2] if impacts else 0,
-        "direct_users_p90": impacts[int(len(impacts) * 0.9)] if impacts else 0,
+        "counted": {"definitions": total, "what": "functions and classes in the target's own code, outside tests",
+                    "left_out_as_not_own_code": left_out},
+        "found_by_name_alone": {"definitions": total - (shared or 0), "share": share(total - (shared or 0), total),
+                                "means": "no other definition has the same name"},
+        "test_reach": {
+            "lower": {"share": share(by_call, total), "counts": "a test reaches the definition through calls and uses",
+                      "errs": "low: misses what a test exercises through an import or a framework"},
+            "upper": {"share": share(by_file, total), "counts": "a test can reach the file the definition is in",
+                      "errs": "high: one tested function counts its whole file"},
+            "by_folder": {folder: {"definitions": row["definitions"], "lower": share(row["by_call"], row["definitions"]),
+                                   "upper": share(row["by_file"], row["definitions"])}
+                          for folder, row in sorted(by_folder.items(), key=lambda kv: -kv[1]["definitions"])},
+        },
+        "no_link_found": {
+            "definitions": len(no_link), "share": share(len(no_link), total),
+            "means": "the parse found nothing that refers to it; this is not a count of unused code",
+            "checked": None if elsewhere is None else {
+                "sampled": len(sample), "named_in_another_file": elsewhere,
+                "reading": f"{elsewhere} of {len(sample)} sampled are named in another source file, so the parse "
+                           "missed a link there; only the rest are candidates for unused, and each needs reading"},
+        },
+        "direct_users": {"median": direct[len(direct) // 2] if direct else 0,
+                         "p90": direct[int(len(direct) * 0.9)] if direct else 0},
         "most_used": [[nodes[i]["label"], nodes[i]["file"], len({j for j, _r, _i in index["used_by"][i]})] for i in widest],
         "inferred_share_of_dependencies": round(
             sum(inf for row in index["uses"] for _j, _r, inf in row) / max(1, sum(len(row) for row in index["uses"])), 3),
     }
+
+
+def hash_of(text):
+    """A stable order for sampling, the same on every run and machine."""
+    import hashlib
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def main():

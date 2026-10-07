@@ -1,5 +1,24 @@
 # Releases
 
+## 3.3.1 (2026-10-06)
+
+`measure` printed numbers that read as a verdict and were wrong in the alarming direction. The
+owner saw 35% of definitions reached by a test and 2,007 referred to by nothing, and took them
+as a judgement on the codebase. Checked against the source by another route, neither held.
+
+- **Declaration, vendored and generated files are left out.** 806 of the 7,281 definitions
+  counted before were not the target's own code, most of them one vendored type file.
+- **Test reach is a range.** Lower: a test reaches the definition through calls. Upper: a test
+  can reach its file. Each is printed with the direction it errs in, per top folder. On the run
+  that printed 35%: 39.6% to 85.8% overall, 40.8% to 92.2% in the kernel.
+- **"No link found" replaces "referred to by nothing", and is printed with its own check.** A
+  sample of those definitions is looked up by name in the source. On that run 46 of 60 were
+  named in another file: the parse had missed the link.
+- Search and hook lines say `no dependents found in the map` and `no test file found among
+  them`. Neither says a thing is unused or untested.
+- The rule this release adds to `SKILL.md`: a measure is not shown as a verdict on a codebase,
+  and is not shown at all before it has been checked by a second route.
+
 ## 3.3.0 (2026-10-06)
 
 The graph answers questions, and can sit beside an agent's own search.
