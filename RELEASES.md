@@ -7,19 +7,29 @@ most of it was on. Both misled. On the workstation root the cluster called `now_
 30% `hosting_ops.py`, and 19% of it touched `now_utc()`; and 1,639 of 16,653 code nodes sat on
 a plane that was not theirs, kernel modules on the tests plane among them.
 
-- **A cluster is named for the files it holds.** Its folder, then the file most of it is in,
-  or its two largest files when no one file holds half, then how many more files there are:
-  `wskernel/ops: hosting_ops.py, hosting_advance.py +11 files`. A long folder keeps its last
-  three parts.
-- **A community is drawn once on each plane it has members on.** A part with fewer than five
-  members joins the cluster on its own plane that it is linked to most, or that plane's
-  `other code` when it is linked to none. On that root no code node is on a plane that is not
-  its own, and the number of clusters is as it was (743).
-- **A claim is shown once**, on the cluster holding its community's most connected member.
-- `tests/test_view.py` (new): 11 cases; each of 10 rules broken in a copy turns one red.
+- **A cluster is named for the files it holds.** The folder of its largest file, then that
+  file when it holds half the members, or its two largest files, then how many more there are:
+  `wskernel/ops: hosting_ops.py, hosting_advance.py +11 files`. A file from another folder is
+  said with its folder. Where the files named would hold under a quarter of the members the
+  name is the count and the largest file: `tests: 126 files, largest test_registry.py`. A
+  long folder keeps its last three parts, and a name too long loses the end of its file
+  names, never the count.
+- **Two clusters of one name on a plane are told apart** by their most connected member:
+  `tests: test_booth.py (FakeProcesses)`. On that root 296 of 765 code clusters carry one.
+- **A community is drawn once on each plane it has members on**, and each cluster carries its
+  `community` so the parts can be tied together. A part with fewer than five members joins a
+  cluster on its own plane when it has at least as many links to it as inside itself: the one
+  it is linked to most, and among equals one holding a file of its own. A small part tied
+  more to itself stands as it is; one with no link at all goes to its plane's `other code`.
+  On that root no code node is on a plane that is not its own. There are 798 clusters where
+  there were 740; 61 code clusters have fewer than five members.
+- **A claim is shown once**, on the cluster its community's most connected member is in,
+  wherever that member was placed.
+- `tests/test_view.py` (new): 19 cases; each of 26 rules broken in a copy turns one red.
 
 The grouping itself is graphify's and is unchanged. What moved is where each part of a group
-is drawn and what it is called.
+is drawn and what it is called. The viewer does not yet use `community` to light the parts of
+one group together.
 
 ## 3.7.0 (2026-10-07)
 
