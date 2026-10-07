@@ -378,7 +378,9 @@ python scripts/graph_view.py --graph "$RUN/graph/graph.json" --out-dir "$RUN/vie
 Positions are computed once, here, so opening the view does no layout work. Every node
 is on a **plane**, a domain: actors, each asset kind, names from outside, and for code
 either its top folder or, with `--structure`, the layer the target declares for it (a
-JSON file with `layers: [{name}]` and `registrations: [{selector, layer}]`). Test code
+JSON file with `layers: [{name}]` and `registrations: [{selector, layer}]`). Code the
+declaration places nowhere, in a folder it places other code from, is on a plane marked
+"(no declared layer)" and counted in the run's summary. Test code
 and code the target holds but did not write (declarations, vendored, generated) each have
 a plane of their own, whatever folder or layer they sit in. Every node
 is in a **cluster**: the part of its code community that is on its plane (named for the

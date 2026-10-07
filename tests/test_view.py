@@ -62,6 +62,46 @@ class Planes(View):
             self.assertEqual(self.planes[self.where[row[3]]["plane"]], row[5].split("/")[0], row[3])
 
 
+class DeclaredLayers(unittest.TestCase):
+    CORE = [{"selector": "kernel/store.py", "layer": "core"}]
+
+    def see(self, registrations, extra=()):
+        view = gv.build_view(graph(extra), ["core"], registrations)
+        self.planes = [p["name"] for p in view["planes"]]
+        self.where = {row[5]: self.planes[c["plane"]] for c in view["clusters"]
+                      for row in view["nodes"][c["start"]: c["start"] + c["count"]]}
+        return view
+
+    def test_code_a_declaration_covers_but_does_not_place_says_so(self):
+        view = self.see(self.CORE)
+        self.assertEqual(self.where["kernel/store.py"], "core")
+        for rel in ("kernel/ids.py", "kernel/ops/alpha.py"):
+            self.assertEqual(self.where[rel], "kernel (no declared layer)", rel)
+        self.assertEqual(view["unplaced"], {})    # the made-up graph has definitions and no file nodes
+
+    def test_a_folder_the_declaration_does_not_speak_for_keeps_its_name(self):
+        self.see(self.CORE)
+        self.assertEqual((self.where["app/lone.py"], self.where["tests/test_store.py"]), ("app", "tests"))
+
+    def test_what_was_left_out_comes_straight_after_the_layers(self):
+        self.see(self.CORE)
+        self.assertEqual(self.planes, ["core", "kernel (no declared layer)", "app", "tests"])
+
+    def test_the_files_left_out_are_counted(self):
+        files = [code("kernel/ids.py", "kernel/ids.py", 1, kind="file"), code("kernel/ops/alpha.py", "kernel/ops/alpha.py", 2, kind="file"),
+                 code("kernel/store.py", "kernel/store.py", 1, kind="file"), code("app/lone.py", "app/lone.py", 3, kind="file")]
+        self.assertEqual(self.see(self.CORE, files)["unplaced"], {"kernel (no declared layer)": 2})
+
+    def test_with_no_declaration_nothing_is_marked(self):
+        view = self.see([])
+        self.assertEqual(self.planes, ["app", "kernel", "tests"])
+        self.assertEqual(view["unplaced"], {})
+
+    def test_a_declaration_that_places_everything_marks_nothing(self):
+        self.see([{"selector": "kernel/*", "layer": "core"}])
+        self.assertEqual(self.planes, ["core", "app", "tests"])
+
+
 class SmallParts(View):
     def test_a_part_of_five_stands_and_a_part_of_four_does_not(self):
         five = [code(f"f{i}", "kernel/five.py", 7) for i in range(5)]

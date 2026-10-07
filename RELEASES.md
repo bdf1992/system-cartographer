@@ -1,5 +1,22 @@
 # Releases
 
+## 3.12.0 (2026-10-07)
+
+With a structure declaration the view still drew a `wskernel` plane beside the five layers the
+workstation declares: 328 nodes of code the declaration places nowhere, shown as if its top
+folder were a layer of its own.
+
+- **Code a declaration covers but does not place says so.** Where `--structure` places some
+  code of a top folder on a layer, the rest of that folder's code is on a plane named for it
+  and marked: `wskernel (no declared layer)`. That plane comes straight after the layers. A
+  folder the declaration places nothing from keeps its name: it does not speak for `client`.
+  Tests and code not written here stay on their own planes.
+- **The run's summary counts the files.** `graph_view.py` prints
+  `files_with_no_declared_layer` by plane. On the workstation root: 11 files, the JavaScript
+  of the booth player and the Chrome extension.
+- 7 cases in `tests/test_view.py` and `tests/test_roles.py`; each of 11 rules broken in a copy
+  turns one red.
+
 ## 3.11.0 (2026-10-07)
 
 The documents plane was one cluster of 269 files, 3 of them linked to anything, and 221 of
