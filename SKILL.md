@@ -289,7 +289,8 @@ behalf.
 
 The scan sorts files by pattern. It does not read code. `scripts/code_graph.py` does, by
 handing the scanned code files to graphify's tree-sitter extractor (the parse `graphify
-update` runs; no model is involved):
+update` runs; no model is involved). Calls through an imported module name are resolved
+by the cartographer from each file's imports:
 
 ```bash
 python scripts/code_graph.py --scan-dir "$RUN/scan" --out-dir "$RUN/code"
