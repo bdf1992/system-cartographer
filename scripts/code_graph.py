@@ -6,7 +6,8 @@ the scanned code files to graphify's tree-sitter extractor (the same parse `grap
 update` runs, no model involved), so a function, a class and a module are each a node and
 a call, an import, an inheritance and a containment are each an edge, tagged EXTRACTED
 when read off the source and INFERRED when resolved across files. Leiden then groups the
-nodes into communities from the edges alone.
+nodes into communities from the edges alone. Calls written through an imported module name (module.function( ) are
+resolved by the cartographer from each file's imports, because graphify drops them.
 
 Two more passes ride on the same file list:
 
@@ -28,6 +29,7 @@ on PYTHONPATH). `ruff` on PATH is optional; without it the lint pass is skipped 
 output says so.
 """
 import argparse
+import ast
 import json
 import os
 import re
@@ -104,6 +106,104 @@ def parse_code(root, files, out_dir):
 def start_line(node):
     match = _LINE.search(str(node.get("source_location") or ""))
     return int(match.group(1)) if match else None
+
+
+def _file_imports(tree, rel):
+    """local alias -> the dotted name it stands for, relative imports resolved against rel's package."""
+    imports = {}
+    package = rel.rsplit("/", 1)[0].replace("/", ".") if "/" in rel else ""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports[alias.asname or alias.name.split(".")[0]] = alias.name if alias.asname else alias.name.split(".")[0]
+        elif isinstance(node, ast.ImportFrom):
+            base = node.module or ""
+            if node.level:
+                parts = package.split(".") if package else []
+                parts = parts[:max(len(parts) - (node.level - 1), 0)]
+                base = ".".join([*parts, base]) if base else ".".join(parts)
+            for alias in node.names:
+                imports[alias.asname or alias.name] = f"{base}.{alias.name}" if base else alias.name
+    return imports
+
+
+def resolve_module_calls(root, files, code):
+    """Append a `calls` link for each call written module.function( or package.module.function(
+    where the module is imported in that file. graphify records the call but cannot place it
+    when the caller is a method, and does not return what it left unresolved, so the Python
+    files are read again with ast. Returns how many links it appended."""
+    nodes, links = code["nodes"], code["links"]
+    def_at, module_of = {}, {}
+    for node in nodes:
+        source = str(node.get("source_file") or "").replace("\\", "/")
+        if not source:
+            continue
+        if node.get("_callable"):
+            line = start_line(node)
+            if line is not None:
+                def_at[(source, line)] = node["id"]
+        elif node.get("file_type") == "code" and not node.get("_callable_class") and source.endswith(str(node.get("label") or "\0")):
+            module_of[source] = node["id"]
+    trees = {}
+    for rel in files:
+        rel = rel.replace("\\", "/")
+        if not rel.endswith(".py"):
+            continue
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as handle:
+                trees[rel] = ast.parse(handle.read())
+        except (SyntaxError, OSError, ValueError):
+            continue
+    top = {rel: {n.name: n.lineno for n in tree.body
+                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
+           for rel, tree in trees.items()}
+
+    def module_file(mod):
+        path = mod.replace(".", "/")
+        for candidate in (path + ".py", path + "/__init__.py"):
+            if candidate in trees:
+                return candidate
+        for candidate in (path + ".py", path + "/__init__.py"):
+            hits = [rel for rel in trees if rel.endswith("/" + candidate)]
+            if len(hits) == 1:
+                return hits[0]
+            if hits:
+                return None
+        return None
+
+    joined = {(link["source"], link["target"]) for link in links if link.get("relation") == "calls"}
+    added = 0
+    for rel, tree in trees.items():
+        imports = _file_imports(tree, rel)
+        if not imports:
+            continue
+        pending = [(tree, ())]
+        while pending:
+            node, defs = pending.pop()
+            for child in ast.iter_child_nodes(node):
+                below = defs + (child,) if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) else defs
+                pending.append((child, below))
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+                continue
+            middle, expr = [], node.func.value
+            while isinstance(expr, ast.Attribute):
+                middle.append(expr.attr)
+                expr = expr.value
+            if not isinstance(expr, ast.Name) or expr.id not in imports:
+                continue
+            target_file = module_file(".".join([imports[expr.id], *reversed(middle)]))
+            if target_file is None:
+                continue
+            target = def_at.get((target_file, top[target_file].get(node.func.attr)))
+            caller = next((def_at[(rel, d.lineno)] for d in reversed(defs) if (rel, d.lineno) in def_at), module_of.get(rel))
+            if target is None or caller is None or caller == target or (caller, target) in joined:
+                continue
+            joined.add((caller, target))
+            links.append({"relation": "calls", "context": "call", "confidence": "EXTRACTED", "confidence_score": 1.0,
+                          "source_file": rel, "source_location": f"L{node.lineno}", "weight": 1.0,
+                          "_origin": "cartographer", "source": caller, "target": target})
+            added += 1
+    return added
 
 
 def run_lint(root, files, code_graph):
@@ -202,6 +302,7 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
     started = time.time()
     code = parse_code(root, files, args.out_dir)
+    module_calls_added = resolve_module_calls(root, files, code)
     parse_seconds = round(time.time() - started, 1)
     lint = ({"ran": False, "reason": "--no-lint", "findings": 0, "by_file": {}, "by_code": {}}
             if args.no_lint else run_lint(root, files, code))
@@ -218,6 +319,7 @@ def main():
     json.dump({
         "code_graph": out, "files_parsed": code["graph"]["files_parsed"], "parse_seconds": parse_seconds,
         "nodes": len(code["nodes"]), "links": len(code["links"]),
+        "module_calls_added": module_calls_added,
         "communities": len({n["community"] for n in code["nodes"] if n["community"] is not None}),
         "relations": dict(sorted(relations.items(), key=lambda item: -item[1])), "basis": basis,
         "lint": {k: lint[k] for k in ("ran", "reason", "findings")},
