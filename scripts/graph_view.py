@@ -283,10 +283,13 @@ def build_view(graph, layers, registrations):
         if n.get("code_community") is not None:
             holder.setdefault(f"code-{n['code_community']}", cluster[n["id"]])
     for unit, rows in claims.items():
-        shown_claims.setdefault(holder.get(unit, unit), []).extend(rows)
+        here = holder.get(unit, unit)    # on another community's cluster a claim says which unit it is about
+        shown_claims.setdefault(here, []).extend(
+            f"{c['id']} {c['verdict'] or c['state']}" + ("" if here.split("@")[0] == unit else f" ({unit})") for c in rows)
     ranked = {cid: sorted(rows, key=lambda n: (-degree[n["id"]], n["id"])) for cid, rows in members.items()}
     names = distinct_names({cid: cluster_name(cid, rows) if cid.startswith("code-") else cid for cid, rows in members.items()},
-                           cluster_plane, {cid: str(rows[0]["label"]) for cid, rows in ranked.items()})
+                           cluster_plane, {cid: str(next((n for n in rows if n["kind"] != "file"), rows[0])["label"])
+                                           for cid, rows in ranked.items()})
     out_nodes, node_index, clusters = [], {}, []
     for cid in cluster_ids:
         rows = ranked[cid]
@@ -301,7 +304,7 @@ def build_view(graph, layers, registrations):
         community = cid.split("@")[0] if cid.startswith("code-") and not cid.startswith("code-other@") else None
         clusters.append({"id": cid, "name": names[cid], "community": community, "plane": order.index(cluster_plane[cid]),
                          "x": round(cx, 1), "y": round(cy, 1), "r": round(radius[cid], 1), "start": start, "count": len(rows),
-                         "claims": [f"{c['id']} {c['verdict'] or c['state']}" for c in shown_claims.get(cid, [])]})
+                         "claims": shown_claims.get(cid, [])})
     return {
         "planes": [boxes[p] for p in order], "clusters": clusters, "nodes": out_nodes, "kinds": KINDS,
         "edges": [[node_index[l["source"]], node_index[l["target"]], KIND.get(l["relation"], 4),

@@ -143,6 +143,10 @@ class Names(View):
         view = self.see(twin, [link(f"t{i}", "t0") for i in range(1, 5)])
         self.assertEqual(self.home("store0"), STORE + " (now)")
         self.assertEqual(self.home("t1"), STORE + " (t0)")
+        # a file node that is the busiest member would only repeat the name: the busiest definition is used
+        module = code("kernel/store.py", "kernel/store.py", 5, kind="file")
+        self.see(twin + [module], [link(f"t{i}", "t0") for i in range(1, 5)] + [link("kernel/store.py", f"t{i}", "contains") for i in range(5)])
+        self.assertEqual(self.home("t1"), "kernel: store.py +1 file (t0)")
         self.assertEqual(len({(c["plane"], c["name"]) for c in view["clusters"]}), len(view["clusters"]))
 
     def test_the_same_busiest_member_too_gets_a_number(self):
@@ -160,9 +164,11 @@ class Claims(View):
     def test_a_claim_follows_a_community_that_was_taken_into_another_cluster(self):
         claim = {"code-9": [{"id": "c9", "verdict": None, "state": "open"}]}
         view = self.see([code("stray", "kernel/stray.py", 9)], [link("stray", "a0")], claims=claim)
-        self.assertEqual([(c["community"], c["claims"]) for c in view["clusters"] if c["claims"]], [("code-2", ["c9 open"])])
+        self.assertEqual([(c["community"], c["claims"]) for c in view["clusters"] if c["claims"]],
+                         [("code-2", ["c9 open (code-9)"])])    # on another community's cluster it says which unit
         view = self.see([code("stray", "kernel/stray.py", 9)], claims=claim)    # linked to nothing: the leftovers
-        self.assertEqual([(c["name"], c["claims"]) for c in view["clusters"] if c["claims"]], [("kernel: other code", ["c9 open"])])
+        self.assertEqual([(c["name"], c["claims"]) for c in view["clusters"] if c["claims"]],
+                         [("kernel: other code", ["c9 open (code-9)"])])
 
 
 if __name__ == "__main__":
