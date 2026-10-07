@@ -53,7 +53,7 @@ PLANE_GAP = 260.0
 SMALL_TYPE = 5            # records of a type before the type is a cluster of its own
 KINDS = ["calls", "imports", "uses", "holds", "other"]
 KIND = {"calls": 0, "indirect_call": 0, "imports": 1, "imports_from": 1, "inherits": 1, "re_exports": 1,
-        "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2,
+        "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2,
         "contains": 3, "method": 3, "defines": 3, "binds": 3}
 FIRST_PLANES = ["actors"]
 LAST_PLANES = ["packages and names", ge.BOUNDARY_COMMUNITY]
@@ -122,22 +122,21 @@ def build_view(graph, layers, registrations):
     degree = ge.degrees(graph)
     claims = graph["graph"].get("claims") or {}
     plane = {n["id"]: plane_of(n, registrations) for n in nodes}
-    # A record type too small to be a cluster of its own is shown with the folder its records
-    # sit in, and a folder's worth that is still too small with the other leftovers.
+    # On its plane, a record type too small to be a cluster of its own is shown with the folder
+    # its records sit in, and a folder's worth that is still too small with the other leftovers.
     def tally(names):
         count = {}
         for name in names.values():
             count[name] = count.get(name, 0) + 1
         return count
 
-    group = {n["id"]: n["record_type"] for n in nodes if n.get("record_type")}
-    held, folder = tally(group), {n["id"]: os.path.basename(os.path.dirname(n["source_file"])) for n in nodes}
-    group = {i: name if held[name] >= SMALL_TYPE else folder[i] for i, name in group.items()}
-    held = tally(group)
-    group = {i: name if held[name] >= SMALL_TYPE else "other" for i, name in group.items()}
+    group = {n["id"]: f"{plane[n['id']]}: {n['record_type']}" for n in nodes if n.get("record_type")}
+    for fallback in ({n["id"]: os.path.basename(os.path.dirname(n["source_file"])) for n in nodes}, {}):
+        held = tally(group)
+        group = {i: name if held[name] >= SMALL_TYPE else f"{plane[i]}: {fallback.get(i, 'other')}"
+                 for i, name in group.items()}
     cluster = {n["id"]: f"code-{n['code_community']}" if n.get("code_community") is not None
-               else f"{plane[n['id']]}: {group[n['id']]}" if n["id"] in group else plane[n["id"]]
-               for n in nodes}
+               else group.get(n["id"], plane[n["id"]]) for n in nodes}
     members = {}
     for n in nodes:
         members.setdefault(cluster[n["id"]], []).append(n)
