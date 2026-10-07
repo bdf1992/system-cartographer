@@ -59,7 +59,7 @@ LABEL_LENGTH = 24
 FOLDER_PARTS = 3          # trailing folders kept in a cluster's name
 KINDS = ["calls", "imports", "uses", "holds", "other"]
 KIND = {"calls": 0, "indirect_call": 0, "imports": 1, "imports_from": 1, "inherits": 1, "re_exports": 1,
-        "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2, "tests": 2,
+        "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2, "names": 2, "tests": 2,
         "contains": 3, "method": 3, "defines": 3, "binds": 3}
 FIRST_PLANES = ["actors"]
 # Code that is not the target's own running code has a plane of its own, after the rest of the code.
@@ -228,6 +228,13 @@ def build_view(graph, layers, registrations):
         held = tally(group)
         group = {i: name if held[name] >= SMALL_TYPE else f"{plane[i]}: {fallback.get(i, 'other')}"
                  for i, name in group.items()}
+    # An asset file that is a product of something else (generated, a copy, an archive, a transcript)
+    # is shown apart from the files that were written, where a plane has enough of them.
+    aside = {n["id"]: f"{plane[n['id']]}: {n['source_class']}" for n in nodes
+             if n["kind"] == "file" and not n.get("record_type")    # a record is grouped by its type, code by its community
+             and n.get("source_class") in ge.DERIVED_CLASSES}
+    held = tally(aside)
+    group.update({i: name for i, name in aside.items() if held[name] >= SMALL_TYPE})
     code = code_clusters(nodes, links, plane)
     cluster = {n["id"]: code.get(n["id"]) or group.get(n["id"], plane[n["id"]]) for n in nodes}
     members = {}
