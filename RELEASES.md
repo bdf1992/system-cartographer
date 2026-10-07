@@ -1,5 +1,38 @@
 # Releases
 
+## 3.1.0 (2026-10-06)
+
+Measured against graphify's visual, and its viewer shipped beside ours.
+
+- **The measurement.** One slice of parsed code, `wskernel/guard` of the 711-file root: 52
+  definitions, 158 links, 8 Leiden communities, drawn both ways from the same data.
+
+  | Capability | graphify `graph.html` | Schematically document |
+  |---|---|---|
+  | Whole slice in one 1600x1000 window | yes | no: 3994x3795, 9.5 times the window's area |
+  | Communities told apart by colour | 8 of 8 | 3 of 8 |
+  | A node's importance visible | size by links | every card one size |
+  | One link followed by eye | mostly | no: 158 wires merge into white bundles |
+  | Labels | hubs labelled, the rest on hover | every card labelled, long names cut |
+  | Link meaning | dashed when inferred, coloured by community | four line styles by relation, one colour |
+  | Details and neighbours on click | yes | not measured |
+  | Search | yes | not measured |
+  | Filter by community | checkbox each | no |
+  | Opens as one file | yes, needs a connection for `vis-network` | needs a served editor and an address |
+  | Typed symbols, regions, editing, claims on a unit | no | yes |
+
+  Three of eight colours was the exporter's error, not Schematically's: slots 1 to 5 are greys
+  and the categorical colours are slots 6 to 11, which also means six colours at most.
+- **`code_graph.py` writes `graph.html`**, graphify's viewer over the parsed code, aggregated to
+  one node per community above 5,000 nodes, with communities named from their folder and most
+  connected definition. On the 711-file root: 707 community nodes and 3,711 links between them.
+- `SKILL.md` says which visual to open for which question.
+- Not done: the Schematically documents are unchanged. Closing the gap there means a node-link
+  view in Schematically itself (fit to window, size by links, colour per community, straight
+  wires), which is that product's work and is not started; and the exporter using slots 6 to 11,
+  dropping containment wires that a group already shows, and reading a target's declared
+  structure, which is this repository's next change.
+
 ## 3.0.0 (2026-10-06)
 
 The map is made from parsed code, and agents analyse it. Until this release the graph was
