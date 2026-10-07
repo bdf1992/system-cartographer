@@ -557,23 +557,25 @@ def records_report(graph):
     return out + [""]
 
 
-def document_targets(text, rel, nodes):
+def document_targets(text, rel, nodes, root=""):
     """The scanned files a document names by path, in the order it names them.
 
-    A path is read as a link in the document would be: against the document's own folder
-    first, then against the root, then, for a path of more than one part, by its trailing
-    parts, which is how an absolute path into the root is met. A bare file name means a
-    file beside the document and nothing else: the same name elsewhere is another file. A
-    path under `~` is in a home folder, not in the root."""
+    A relative path is read as a link in the document would be: against the document's own
+    folder first, then against the root, then, for a path of more than one part, by its
+    trailing parts (a path written from the folder above the root). A bare file name means
+    a file beside the document and nothing else: the same name elsewhere is another file.
+    An absolute path names a scanned file only when it lies under the scanned root; any
+    other is somewhere else, a path under `~` among them."""
     here, found = posixpath.dirname(rel), []
+    above = re.sub(r"^[A-Za-z]:", "", root.replace("\\", "/")).rstrip("/").lower() + "/"    # a drive letter is not in a token
     for match in _PATH_TOKEN.finditer(text or ""):
-        if text[match.start() - 1: match.start()] == "~":
-            continue
         token = match.group().replace("\\", "/")
         parts = [part for part in token.split("/") if part not in ("", ".")]
-        tries = [] if token.startswith("/") else [posixpath.normpath(posixpath.join(here, token))]
-        if len(parts) > 1:
-            tries += ["/".join(parts[first:]) for first in range(len(parts) - 1)]
+        if token.startswith("/"):
+            tries = [token[len(above):]] if root and token.lower().startswith(above) else []
+        else:
+            tries = [posixpath.normpath(posixpath.join(here, token))]
+            tries += ["/".join(parts[first:]) for first in range(len(parts) - 1)] if len(parts) > 1 else []
         target = next((t for t in tries if t in nodes and nodes[t]["kind"] == "file"), None)
         if target and target != rel and target not in found:
             found.append(target)
@@ -596,7 +598,7 @@ def document_layer(nodes, links, graphs, asset_kinds):
     linked = {(link["source"], link["target"]) for link in links}
     stats = {"documents": len(documents), "naming": 0, "links": 0, "derived": 0, "left_out": 0}
     for rel in documents:
-        named = [t for t in document_targets(read_target_text(root, rel) if root else "", rel, nodes)
+        named = [t for t in document_targets(read_target_text(root, rel) if root else "", rel, nodes, root)
                  if (rel, t) not in linked]
         derived = nodes[rel].get("source_class") in DERIVED_CLASSES
         kept = named[:1] if derived else named

@@ -8,9 +8,9 @@ them generated output drawn with the 48 that were written.
 - **A document is linked to the files it names.** `graph_export.py` reads every file a
   documents concern holds and links it to each scanned file it names by path: a `names` link,
   INFERRED, since a path in prose says the document speaks of the file and nothing more. A
-  path is read as a link in the document would be: against the document's folder, then the
-  root, then by its trailing parts. A bare file name means a file beside the document, and a
-  path under `~` is not in the root.
+  relative path is read as a link in the document would be: against the document's folder,
+  then the root, then by its trailing parts. A bare file name means a file beside the
+  document. An absolute path counts only when it lies under the scanned root.
 - **A written document is linked to every file it names; a derived one to the first.** A
   generated page about a module names the module and then lists what imports it, which the
   map already holds. On the workstation root 270 of 289 documents name a file; 448 links were
@@ -21,14 +21,18 @@ them generated output drawn with the 48 that were written.
   or more: `documents: generated` (221) beside `documents` (48). Every generated document
   there now has a link, and 41 of the 48 written ones.
 - `GRAPH_REPORT.md` has a Documents section with these counts.
-- `tests/test_documents.py` (new): 14 cases; each of 25 rules broken in a copy turns one red.
+- `tests/test_documents.py` (new): 15 cases; each of 30 rules broken in a copy turns one red.
 
-What this does not do. Seven written documents on that root still have no link: bundled HTML
-pages, a style file and a key file that name no scanned file. On 2 of the 219 generated module
-pages the first file named is not the page's subject, because the module became a package
-since the page was written. A document that names a record by its id, or code by a dotted
-module name, is not linked by this. Records are grouped by type, so a record's source class
-does not split it.
+What this does not do. Seven written documents on that root still have no link. Three are
+HTML pages that name scripts by a site path such as `/src/main.tsx`, which is read as an
+absolute path and not resolved against the page's site folder; the other four are a style
+file, a bundled page, a fragment and a key file. The bare-name rule costs six true references
+on that root, where a document under `docs/` names a root file such as `ws.cmd` or
+`pyproject.toml` without a path. On 2 of the 219 generated module pages the first file named
+is not the page's subject, because the module became a package since the page was written. A
+document that names a record by its id, or code by a dotted module name, is not linked by
+this. Records are grouped by type, so a record's source class does not split it.
+
 ## 3.10.0 (2026-10-07)
 
 The map drew tests, vendored files and build output as the target's own code. On the
