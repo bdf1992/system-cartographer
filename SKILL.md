@@ -314,21 +314,14 @@ python scripts/graph_export.py --scan-dir "$RUN/scan" --code-dir "$RUN/code" --o
   is set against what the code imports: declared and never imported, imported and never
   declared. A package whose import name differs from its distribution name shows in both.
 
-- **Viewer.** `graph.html`, graphify's own interactive viewer over the parsed code: every
-  node coloured by community and sized by its links, a search box, a details panel that
-  lists a node's neighbours, and a checkbox per community. Above graphify's node limit
-  (5,000) it draws one node per community instead. Communities are named without a model:
-  the folder most of the community sits in and its most connected definition. Open the
-  file in a browser; it loads `vis-network` from a CDN, so it needs a connection.
-
-**Which visual to open.** Measured on one slice (52 definitions, 158 links, 8
-communities): graphify's viewer showed all of it in a 1600x1000 window, coloured all 8
-communities, and each link could be followed; the Schematically document of the same
-slice needed 3994x3795, and its 158 wires merged into white bundles. So for "what is
-connected to what" at node level, open `graph.html`. The Schematically documents are for
-what the viewer cannot say: typed symbols, declared groups and layers, line styles per
-relation, claims and verdicts on a unit, and a drawing that can be edited and run. Keep
-them at the height of units (the overviews), not definitions.
+**Where the drawing falls short.** Measured on one slice (52 definitions, 158 links, 8
+communities) against graphify's own viewer: its viewer showed the whole slice in a
+1600x1000 window with every community in its own colour and links that could be followed;
+the Schematically document of the same slice needed 3994x3795 and its 158 wires merged
+into bundles. Until Schematically has a node-level view that fits a graph to the window,
+keep the Schematically documents at the height of units (the overviews), where they do
+read, and use `graph.json` and the report for node-level questions. graphify's viewer is
+not shipped: the owner wants that capacity in Schematically, not borrowed.
 
 Nothing is written into the target; graphify's cache goes under `--out-dir`. It needs
 `graphify` importable (`pip install graphifyy`, or the schematify fork on `PYTHONPATH`);

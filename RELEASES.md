@@ -1,5 +1,12 @@
 # Releases
 
+## 3.1.1 (2026-10-06)
+
+graphify's viewer is taken back out. 3.1.0 wrote its `graph.html` beside our documents; the owner
+wants the capacity in Schematically, not graphify's viewer, which also re-runs its layout on
+every open and offers little past looking. `code_graph.py` no longer writes it. The measurement
+in 3.1.0 stands and is the list of what Schematically's own node-level view has to do.
+
 ## 3.1.0 (2026-10-06)
 
 Measured against graphify's visual, and its viewer shipped beside ours.
