@@ -1,5 +1,26 @@
 # Releases
 
+## 3.8.0 (2026-10-07)
+
+The view named a code cluster after its most connected member and drew it on whichever plane
+most of it was on. Both misled. On the workstation root the cluster called `now_utc()` was
+30% `hosting_ops.py`, and 19% of it touched `now_utc()`; and 1,639 of 16,653 code nodes sat on
+a plane that was not theirs, kernel modules on the tests plane among them.
+
+- **A cluster is named for the files it holds.** Its folder, then the file most of it is in,
+  or its two largest files when no one file holds half, then how many more files there are:
+  `wskernel/ops: hosting_ops.py, hosting_advance.py +11 files`. A long folder keeps its last
+  three parts.
+- **A community is drawn once on each plane it has members on.** A part with fewer than five
+  members joins the cluster on its own plane that it is linked to most, or that plane's
+  `other code` when it is linked to none. On that root no code node is on a plane that is not
+  its own, and the number of clusters is as it was (743).
+- **A claim is shown once**, on the cluster holding its community's most connected member.
+- `tests/test_view.py` (new): 11 cases; each of 10 rules broken in a copy turns one red.
+
+The grouping itself is graphify's and is unchanged. What moved is where each part of a group
+is drawn and what it is called.
+
 ## 3.7.0 (2026-10-07)
 
 On a records-heavy root the view drew every record as one disc: 3,718 files under one label,
