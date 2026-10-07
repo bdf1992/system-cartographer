@@ -79,6 +79,15 @@ AGENTIC_KINDS = frozenset({"agent", "skill", "hook", "workflow", "tool"})
 AGENTIC_READ_BYTES = 262144
 MAX_SHUFFLE_WORK = 30_000_000
 CODE_EXTENSIONS = frozenset({".py", ".js", ".mjs", ".ts", ".tsx", ".sh", ".ps1", ".go", ".rs", ".cs", ".java", ".rb"})
+RECORDS = "records"
+# The fields a record uses to say what kind of record it is, in the order they are tried.
+RECORD_TYPE_FIELDS = ("record_type", "type", "kind")
+# In those fields these are JSON Schema's own words for a value's shape, not a kind of record.
+SCHEMA_TYPE_WORDS = frozenset({"object", "array", "string", "number", "integer", "boolean", "null"})
+RECORD_READ_BYTES = 1048576
+# A value shorter than this is a word (a state, a flag), not the id of another record.
+RECORD_ID_MIN = 4
+RECORD_LIST_ITEMS = 200
 LABEL_LENGTH = 28
 ELLIPSIS = "…"
 
@@ -373,6 +382,115 @@ def agentic_layer(nodes, links, graphs):
                 names(owner, rel, "workflow", relation="runs", score=0.85)
 
 
+def read_record(root, rel):
+    """A record file's parsed JSON object, or None when it is not one (YAML, a list, unreadable, too large)."""
+    path = os.path.join(root, rel)
+    try:
+        if not rel.lower().endswith(".json") or os.path.getsize(path) > RECORD_READ_BYTES:
+            return None
+        with open(path, encoding="utf-8-sig") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def record_strings(value, field=""):
+    """(field path, string) for every string inside a parsed record, list positions left out of the path."""
+    if isinstance(value, str):
+        yield field, value
+    elif isinstance(value, dict):
+        for key, inner in value.items():
+            yield from record_strings(inner, f"{field}.{key}" if field else str(key))
+    elif isinstance(value, list):
+        for inner in value[:RECORD_LIST_ITEMS]:
+            yield from record_strings(inner, f"{field}[]")
+
+
+def record_layer(nodes, links, graphs, asset_kinds):
+    """The records, told apart and joined to each other.
+
+    A record says what it is in one of RECORD_TYPE_FIELDS; one that does not is typed by
+    the folder it sits in, and `record_type_basis` says which of the two it was. A record
+    is known by its own `id` and by its file name; where a string anywhere in one record is
+    exactly that of another, that is a `refers_to` link carrying the field it was found in:
+    EXTRACTED when the string is the id the target declares, INFERRED when it only matches
+    the target's file name, which a word can do by chance. A name two records share names
+    neither. Returns the counts for the report."""
+    root = next((g.get("root") or g.get("target") for g in graphs.values() if g.get("root") or g.get("target")), "")
+    records = sorted(rel for rel, node in nodes.items()
+                     if node["kind"] == "file" and asset_kinds.get(node["primary_concern"]) == RECORDS)
+    parsed, declared_ids, file_names = {}, {}, {}
+    stats = {"records": len(records), "declared_type": 0, "typed_by_folder": 0, "links": 0, "by_file_name": 0,
+             "linked_records": 0, "ambiguous_ids": 0}
+    for rel in records:
+        data = read_record(root, rel) if root else None
+        declared = next((data[f].strip() for f in RECORD_TYPE_FIELDS
+                         if data and isinstance(data.get(f), str) and 0 < len(data[f].strip()) <= LABEL_LENGTH
+                         and data[f].strip() not in SCHEMA_TYPE_WORDS), None)
+        nodes[rel]["record_type"] = declared or os.path.basename(os.path.dirname(rel)) or "."
+        nodes[rel]["record_type_basis"] = "declared" if declared else "folder"
+        stats["declared_type" if declared else "typed_by_folder"] += 1
+        if data is None:
+            continue
+        parsed[rel] = data
+        for name, known in ((data.get("id"), declared_ids), (os.path.splitext(os.path.basename(rel))[0], file_names)):
+            if isinstance(name, str) and len(name) >= RECORD_ID_MIN:
+                known.setdefault(name, set()).add(rel)
+    owner = {}
+    for known, basis in ((file_names, "INFERRED"), (declared_ids, "EXTRACTED")):    # a declared id wins
+        stats["ambiguous_ids"] += sum(1 for rels in known.values() if len(rels) > 1)
+        owner.update({name: (next(iter(rels)), basis) for name, rels in known.items() if len(rels) == 1})
+    touched = set()
+    for rel, data in sorted(parsed.items()):
+        seen = set()
+        for field, value in record_strings(data):
+            target, basis = owner.get(value, (None, None))
+            if target is None or target == rel or target in seen:
+                continue
+            seen.add(target)
+            touched.update((rel, target))
+            stats["by_file_name"] += basis == "INFERRED"
+            links.append({"source": rel, "target": target, "relation": "refers_to", "field": field,
+                          "confidence": basis, "confidence_score": 1.0 if basis == "EXTRACTED" else INFERRED_SCORE,
+                          "source_file": rel, "concern": nodes[rel]["primary_concern"]})
+        stats["links"] += len(seen)
+    stats["linked_records"] = len(touched)
+    return stats
+
+
+def records_report(graph):
+    stats = graph["graph"].get("records") or {}
+    if not stats.get("records"):
+        return []
+    types, pairs = {}, {}
+    by_id = {node["id"]: node for node in graph["nodes"]}
+    for node in graph["nodes"]:
+        if node.get("record_type"):
+            row = types.setdefault(node["record_type"], {"count": 0, "basis": node["record_type_basis"]})
+            row["count"] += 1
+    for link in graph["links"]:
+        if link["relation"] == "refers_to":
+            pair = (by_id[link["source"]]["record_type"], link["field"], by_id[link["target"]]["record_type"])
+            pairs[pair] = pairs.get(pair, 0) + 1
+    out = ["## Records", "",
+           f"{stats['records']} record files: {stats['declared_type']} say their own type, "
+           f"{stats['typed_by_folder']} are typed by the folder they sit in. {stats['links']} links from one record "
+           f"to another it names, touching {stats['linked_records']} records: {stats['links'] - stats['by_file_name']} "
+           f"by the id the other declares (EXTRACTED), {stats['by_file_name']} by its file name alone (INFERRED). "
+           f"{stats['ambiguous_ids']} names are shared by two records and name neither.", "",
+           "| Type | Records | Type comes from |", "|---|---|---|"]
+    for name in sorted(types, key=lambda k: (-types[k]["count"], k))[:REPORT_ROWS]:
+        out.append(f"| {name} | {types[name]['count']} | {'the record' if types[name]['basis'] == 'declared' else 'its folder'} |")
+    if len(types) > REPORT_ROWS:
+        out.append(f"| {len(types) - REPORT_ROWS} more types | {sum(types[k]['count'] for k in sorted(types, key=lambda k: (-types[k]['count'], k))[REPORT_ROWS:])} | |")
+    if pairs:
+        out += ["", "Which records name which, by the field that holds the id: " + "; ".join(
+            f"{a} `{field}` to {b} ({count})" for (a, field, b), count in
+            sorted(pairs.items(), key=lambda i: (-i[1], i[0]))[:REPORT_ROWS]) + "."]
+    return out + [""]
+
+
 def node_layer(node):
     if node["kind"] in AGENTIC_KINDS:
         return "actors"
@@ -442,6 +560,7 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
     if code_dir:
         links = merge_code(nodes, links, skipped, code_dir)
     agentic_layer(nodes, links, graphs)
+    records = record_layer(nodes, links, graphs, asset_kinds)
 
     pointer_ids, pointed = {}, set()
     for pointer in patterns.get("boundary_pointers") or []:
@@ -493,7 +612,7 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
     graph = {
         "directed": True, "multigraph": True,
         "graph": {"community_labels": {str(i): name for name, i in index.items()}, "grouped_by": group_by,
-                  "skipped": skipped},
+                  "skipped": skipped, "records": records},
         "nodes": [nodes[key] for key in sorted(nodes)],
         "links": links,
     }
@@ -751,6 +870,7 @@ def render_report(graph, target):
             f"({skipped['merged_pointers']} more merged as second spellings of one path)", ""]
     out += claims_report(graph)
     out += layer_report(graph)
+    out += records_report(graph)
     out += ["## Most connected", ""]
     for node_id in sorted(degree, key=lambda k: (-degree[k], k))[:10]:
         if degree[node_id]:

@@ -1,5 +1,24 @@
 # Releases
 
+## 3.5.0 (2026-10-07)
+
+On a records-heavy root the view drew every record as one disc: 3,718 files under one label,
+15% of them linked to anything. The owner asked what on the map needed more classification.
+
+- **A record carries its type.** `graph_export.py` reads each record file and takes the type
+  from `record_type`, `type` or `kind`; a record that names none is typed by the folder it sits
+  in, and `record_type_basis` says which. A JSON Schema's `"type": "object"` is not a record
+  type. On that root 3,610 records say their own type and 108 are typed by folder.
+- **Records are linked to the records they name.** Where a string in one record is exactly
+  another record's `id`, that is a `refers_to` link carrying the field it was found in,
+  EXTRACTED. Where it only matches another record's file name it is INFERRED, since a word can
+  do that by chance. A name two records share links nothing. On that root: 8,066 links, 5,539
+  by declared id and 2,527 by file name, and 3,565 of the 3,718 records have at least one.
+- **The view draws one cluster per record type.** A type with fewer than five records is shown
+  with its folder, and a folder's worth still under five with the other leftovers. The disc
+  became 19 clusters.
+- `GRAPH_REPORT.md` has a Records section: the types, and which type names which by what field.
+
 ## 3.4.0 (2026-10-06)
 
 The search hook led with raw counts. The owner asked that it lead with what is known about a
