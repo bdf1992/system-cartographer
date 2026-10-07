@@ -1,5 +1,41 @@
 # Releases
 
+## 3.0.0 (2026-10-06)
+
+The map is made from parsed code, and agents analyse it. Until this release the graph was
+graphify's format over file-level pattern matches; the owner asked for graphify's depth.
+
+- **`scripts/code_graph.py`** (new): graphify's tree-sitter extraction, graph build and Leiden
+  clustering over the scanned code files, with nothing written into the target. On a 4,959-file
+  root, 711 code files became 21,315 nodes and 64,474 links in 28 seconds: 21,632 calls, 11,825
+  imports, 1,289 inheritances. `ruff` findings land on the definition they fall in (721 findings
+  there). Manifests are read for declared dependencies.
+- **`graph_export.py --code-dir`**: merges the definitions under the files that hold them and
+  replaces the scan's file-to-file import guesses (2,702 there). The merged graph had 21,328
+  nodes and 56,221 links. The Leiden grouping scored modularity 0.61 against 178 shuffles; the
+  concern grouping 0.40; the asset-kind grouping 0.04.
+- **Actors and triggers**: agents, skills, hook bindings and workflows are nodes, joined to the
+  scanned files their commands and instructions name. Every node carries a layer.
+- **Three overviews**: `system-overview.sov`, `system-code.sov` (the largest code communities and
+  the strongest links between them), `system-actors.sov`. Above 2,500 nodes `system.sov` is not
+  written. A first `system-code.sov` of 40 cards and 90 wires was rendered, read and rejected as
+  a tangle; it is 14 cards and 22 wires.
+- **`scripts/analysis_packets.py`** and **`references/analysis-brief.md`** (new): the map cut
+  into units with one packet each, and the instruction for analyst, lead and validator agents.
+  `audit.py` takes `--source agent --unit`, holds a lock so agents can record together, and
+  `graph_export.py --audit` puts verdicts on the map.
+- Run for real on that root: two analyst agents took one code unit and one hook unit and recorded
+  four claims through qualification; the lead settled them; a third agent, given only the
+  statement, validated one. Two of the four were defects in the target that nobody had filed,
+  one of them confirmed by the validator link by link.
+- What the analysts said the packets lack, not yet fixed: a code unit named for its busiest
+  definition misleads when the community is really "everything that imports it"; a member's
+  importers are not listed by name; a hook packet omits the hook's timeout, its tests and the
+  configuration its script reads; a member without a line number is hard to cite.
+- Not done: only Python is linted. A package whose import name differs from its distribution
+  name appears as both undeclared and unused. The run ledger seeds no task for these passes and
+  no gate depends on them. This repository still has no test suite.
+
 ## 2.5.0 (2026-10-06)
 
 A map a person can read, from the same 4,952-file run.

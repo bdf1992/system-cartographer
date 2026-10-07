@@ -37,6 +37,23 @@ That writes `run/graph/graph.json`, `GRAPH_REPORT.md`, `system.sov` and
 `system-overview.sov`, one card per group, which is the one to open first. Add
 `--schematically <checkout>` to the last command to have the document laid out.
 
+## Code, actors and agent analysis
+
+`scripts/code_graph.py` parses the target's code with graphify's tree-sitter extractor, so the
+map holds every function, class and module with the calls, imports, inheritance and uses between
+them, `ruff` findings on the definitions they fall in, and declared dependencies set against
+imported ones. The export adds the agents, skills, hooks and workflows as nodes wired to the files
+they run. `scripts/analysis_packets.py` then cuts the map into units, and agents analyse each one
+and record what they conclude as claims in the audit.
+
+```bash
+python scripts/code_graph.py --scan-dir run/scan --out-dir run/code
+python scripts/graph_export.py --scan-dir run/scan --code-dir run/code --out-dir run/graph --group-by asset
+python scripts/analysis_packets.py --graph run/graph/graph.json --run run
+```
+
+The code pass needs `graphify` importable (`pip install graphifyy`); `ruff` is optional.
+
 ## The audit
 
 Every claim the run makes about the target, whether the builder said it or the scan supports
