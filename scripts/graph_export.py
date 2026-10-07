@@ -80,6 +80,11 @@ AGENTIC_READ_BYTES = 262144
 MAX_SHUFFLE_WORK = 30_000_000
 CODE_EXTENSIONS = frozenset({".py", ".js", ".mjs", ".ts", ".tsx", ".sh", ".ps1", ".go", ".rs", ".cs", ".java", ".rb"})
 RECORDS = "records"
+DOCUMENTS = "documents"
+# Files a document is linked to, of those it names: enough for what it is about, not a listing.
+DOCUMENT_LINKS = 12
+# A path written in prose: stronger than a shared name, weaker than a parsed reference.
+NAMED_SCORE = 0.75
 # The fields a record uses to say what kind of record it is, in the order they are tried.
 RECORD_TYPE_FIELDS = ("record_type", "type", "kind")
 # In those fields these are JSON Schema's own words for a value's shape, not a kind of record.
@@ -540,6 +545,47 @@ def records_report(graph):
     return out + [""]
 
 
+def document_layer(nodes, links, graphs, asset_kinds):
+    """The documents, joined to what they are about.
+
+    A document is any file a documents concern holds. Each scanned file it names by path is
+    a `names` link, INFERRED: a path in prose says the document speaks of that file, not that
+    anything runs. Only the first DOCUMENT_LINKS files it names are kept, in the order it
+    names them, since a generated listing names hundreds and the first is its subject. A
+    file the document is already linked to is not linked again. Returns the counts."""
+    root = next((g.get("root") or g.get("target") for g in graphs.values() if g.get("root") or g.get("target")), "")
+    documents = sorted(rel for rel, node in nodes.items() if node["kind"] == "file"
+                       and any(asset_kinds.get(concern) == DOCUMENTS for concern in node["concerns"]))
+    linked = {(link["source"], link["target"]) for link in links}
+    stats = {"documents": len(documents), "naming": 0, "links": 0, "left_out": 0}
+    for rel in documents:
+        named = [t for t in path_targets(read_target_text(root, rel) if root else "", nodes)
+                 if t != rel and (rel, t) not in linked]
+        stats["naming"] += bool(named)
+        stats["links"] += len(named[:DOCUMENT_LINKS])
+        stats["left_out"] += len(named[DOCUMENT_LINKS:])
+        concern = next(c for c in nodes[rel]["concerns"] if asset_kinds.get(c) == DOCUMENTS)
+        for target in named[:DOCUMENT_LINKS]:
+            links.append({"source": rel, "target": target, "relation": "names", "confidence": "INFERRED",
+                          "confidence_score": NAMED_SCORE, "source_file": rel, "concern": concern})
+    return stats
+
+
+def documents_report(graph):
+    stats = graph["graph"].get("documents") or {}
+    if not stats.get("documents"):
+        return []
+    classes = {}
+    for node in graph["nodes"]:
+        if node["kind"] == "file" and node.get("asset_kind") == DOCUMENTS:
+            classes[node.get("source_class") or "unknown"] = classes.get(node.get("source_class") or "unknown", 0) + 1
+    return ["## Documents", "",
+            f"{stats['documents']} documents; {stats['naming']} name at least one scanned file by path. "
+            f"{stats['links']} `names` links (INFERRED) to the first {DOCUMENT_LINKS} files each one names; "
+            f"{stats['left_out']} further names were left out. By source class, of those filed as documents: "
+            + ", ".join(f"{count} {name}" for name, count in sorted(classes.items(), key=lambda i: (-i[1], i[0]))) + ".", ""]
+
+
 def node_layer(node):
     if node["kind"] in AGENTIC_KINDS:
         return "actors"
@@ -610,6 +656,7 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
         links = merge_code(nodes, links, skipped, code_dir)
     agentic_layer(nodes, links, graphs)
     records = record_layer(nodes, links, graphs, asset_kinds)
+    documents = document_layer(nodes, links, graphs, asset_kinds)
 
     pointer_ids, pointed = {}, set()
     for pointer in patterns.get("boundary_pointers") or []:
@@ -661,7 +708,7 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
     graph = {
         "directed": True, "multigraph": True,
         "graph": {"community_labels": {str(i): name for name, i in index.items()}, "grouped_by": group_by,
-                  "skipped": skipped, "records": records},
+                  "skipped": skipped, "records": records, "documents": documents},
         "nodes": [nodes[key] for key in sorted(nodes)],
         "links": links,
     }
@@ -920,6 +967,7 @@ def render_report(graph, target):
     out += claims_report(graph)
     out += layer_report(graph)
     out += records_report(graph)
+    out += documents_report(graph)
     out += ["## Most connected", ""]
     for node_id in sorted(degree, key=lambda k: (-degree[k], k))[:10]:
         if degree[node_id]:

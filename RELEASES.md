@@ -1,5 +1,27 @@
 # Releases
 
+## 3.11.0 (2026-10-07)
+
+The documents plane was one cluster of 269 files, 3 of them linked to anything, and 221 of
+them generated output drawn with the 48 that were written.
+
+- **A document is linked to the files it names.** `graph_export.py` reads every file a
+  documents concern holds and links it to each scanned file it names by path: a `names` link,
+  INFERRED, since a path in prose says the document speaks of the file and nothing more. Only
+  the first twelve files a document names are kept, in the order it names them: a generated
+  listing names hundreds, and the first is its subject. On the workstation root 258 of 289
+  documents name a file; 1,254 links were made and 1,225 further names left out.
+- **Derived files are shown apart from written ones.** On an asset plane, files whose source
+  class is generated, a copy, an archive, a snapshot, a cache, vendored, a transcript or
+  run state form a cluster of their own where there are five or more: `documents: generated`
+  (221) beside `documents` (48). Every generated document there now has a link, and 28 of the
+  48 written ones.
+- `GRAPH_REPORT.md` has a Documents section with these counts.
+- `tests/test_documents.py` (new): 9 cases; each of 16 rules broken in a copy turns one red.
+
+Twenty written documents on that root still have no link: they name no scanned file by path.
+A document that names a record by its id, not its path, is not linked by this.
+
 ## 3.9.0 (2026-10-07)
 
 The view named a code cluster after its most connected member and drew it on whichever plane
