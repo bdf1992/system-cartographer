@@ -59,9 +59,11 @@ LABEL_LENGTH = 24
 FOLDER_PARTS = 3          # trailing folders kept in a cluster's name
 KINDS = ["calls", "imports", "uses", "holds", "other"]
 KIND = {"calls": 0, "indirect_call": 0, "imports": 1, "imports_from": 1, "inherits": 1, "re_exports": 1,
-        "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2, "names": 2,
+        "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2, "names": 2, "tests": 2,
         "contains": 3, "method": 3, "defines": 3, "binds": 3}
 FIRST_PLANES = ["actors"]
+# Code that is not the target's own running code has a plane of its own, after the rest of the code.
+ROLE_PLANES = {ge.TEST: "tests", ge.NOT_OWN: "code not written here"}
 LAST_PLANES = ["packages and names", ge.BOUNDARY_COMMUNITY]
 
 
@@ -83,6 +85,8 @@ def declared_layer(rel, registrations):
 
 def plane_of(node, registrations):
     if node["layer"] == "code":
+        if node.get("role") in ROLE_PLANES:
+            return ROLE_PLANES[node["role"]]
         return declared_layer(node["source_file"], registrations) or node["source_file"].split("/")[0]
     if node["layer"] == "actors":
         return "actors"
@@ -252,7 +256,8 @@ def build_view(graph, layers, registrations):
     # Planes in reading order: actors, then declared layers from the top of the stack down,
     # then other code, then assets, then what is outside.
     present = set(cluster_plane.values())
-    code_planes = sorted({plane[n["id"]] for n in nodes if n["layer"] == "code"} - set(layers))
+    code_planes = {plane[n["id"]] for n in nodes if n["layer"] == "code"} - set(layers)
+    code_planes = sorted(code_planes - set(ROLE_PLANES.values())) + [p for p in ROLE_PLANES.values() if p in code_planes]
     asset_planes = sorted(present - set(FIRST_PLANES) - set(LAST_PLANES) - set(layers) - set(code_planes))
     order = [p for p in FIRST_PLANES + list(reversed(layers)) + code_planes + asset_planes + LAST_PLANES if p in present]
 

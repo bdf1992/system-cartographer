@@ -35,11 +35,12 @@ import sys
 import time
 from collections import Counter, deque
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import graph_export as ge  # noqa: E402
+
+# `tests` joins a test file to its subject by name; what the test depends on is in its own links.
 STRUCTURAL = frozenset({"contains", "method", "defines", "binds", "rationale_for", "points_outside_root",
-                        "declares", "may_use"})
-_TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/.]+$|\.(test|spec)\.[^/]+$")
-# Code the target holds but did not write: type declarations, vendored and generated files.
-_NOT_OWN = re.compile(r"\.d\.ts$|(^|/)(vendor|vendored|third_party|node_modules|dist|generated)/")
+                        "declares", "may_use", "tests"})
 DEPTHS = 3
 CHECK_SAMPLE = 60
 CHECK_FILE_BYTES = 2_000_000
@@ -50,10 +51,6 @@ CHECK_EXTENSIONS = frozenset({".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx
 def read_json(path):
     with open(path, encoding="utf-8") as handle:
         return json.load(handle)
-
-
-def is_test(source_file):
-    return bool(source_file) and bool(_TEST_FILE.search(source_file.replace("\\", "/")))
 
 
 def build_index(graph):
@@ -89,8 +86,8 @@ def build_index(graph):
             "line": node.get("source_location") or "", "layer": node.get("layer") or "",
             "group": node.get("asset_kind") or node.get("primary_concern") or "",
             "cluster": f"code-{community}" if community is not None else "",
-            "test": is_test(source), "lint": sum((node.get("lint") or {}).values()),
-            "own": not (node.get("source_class") in ("vendor", "generated") or _NOT_OWN.search(source.replace("\\", "/"))),
+            "test": ge.is_test(source), "lint": sum((node.get("lint") or {}).values()),
+            "own": not ge.not_written_here(source, node.get("source_class")),
         })
     names = {}
     for i, row in enumerate(rows):

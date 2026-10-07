@@ -29,6 +29,40 @@ pages the first file named is not the page's subject, because the module became 
 since the page was written. A document that names a record by its id, or code by a dotted
 module name, is not linked by this. Records are grouped by type, so a record's source class
 does not split it.
+## 3.10.0 (2026-10-07)
+
+The map drew tests, vendored files and build output as the target's own code. On the
+workstation root that was 8,654 of 16,653 code nodes in test files and 827 in files it holds
+but did not write, 639 of them one type-declaration file filling most of a plane.
+
+- **Every code node carries a role**: `own`, `test` or `not written here` (a declaration
+  file, a vendored or generated one). The rule is in `graph_export.py` and `graph_query.py`
+  reads it from there; its `test` and `own` flags are the same on that root as before.
+- **Tests and code not written here each have a plane**, after the rest of the code, whatever
+  folder or declared layer the file sits in. A `.test.tsx` beside its component is on the
+  tests plane.
+- **A test file is joined to the file it is about.** The name gives the candidates:
+  `test_x`, `x_test`, `x.test` and `x.spec` may be about the target's own `x` in the same
+  language, where `x` is a file's name, a package's folder, or the last folders and name of a
+  file run together (`test_commands_observer` for `commands/observer.py`). The test's code
+  decides among them: the candidate it has the most links into is its subject, EXTRACTED. With
+  no link into any candidate the name is taken, INFERRED, only for a file beside the test, or
+  for a lone candidate when the test links into none of the target's own code. On that root
+  143 of 262 test files are joined, 138 of them EXTRACTED, 8 of them to a package.
+- **`graph_query.py` does not follow a join.** What a test depends on is in its own links, so
+  `search`, `impact`, `reach` and `measure` answer as they did: the index built from that root
+  is identical, field for field, to the one built before this release.
+- `GRAPH_REPORT.md` has a "Whose code" section with these counts.
+- `tests/test_roles.py` (new): 21 cases; each of 40 rules broken in a copy turns one red.
+
+What this does not do. A test file with no join is not a test of nothing: for 119 of the 262
+on that root the name and the links settled on no one file, as with `test_backup.py`, which
+tests `ops/backup_ops.py` under another name. The rules for what is a test and what was not
+written here are the ones `graph_query.py` already had and have their gaps: a hand-written
+`.d.ts` counts as not written here (2 files on that root), and `editor-test.cjs`, a
+`conftest.py` outside a tests folder and a `*_tests.py` are not seen as tests. The match is
+case-sensitive, so `Tests/FooTests.cs` is read as own code. A subject the test links into
+once, when it links into other files dozens of times, is still EXTRACTED.
 
 ## 3.9.0 (2026-10-07)
 
