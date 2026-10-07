@@ -1,5 +1,30 @@
 # Releases
 
+## 3.10.0 (2026-10-07)
+
+The map drew tests, vendored files and build output as the target's own code. On the
+workstation root that was 8,654 of 16,653 code nodes in test files and 827 in files it holds
+but did not write, 639 of them one type-declaration file filling most of a plane.
+
+- **Every code node carries a role**: `own`, `test` or `not written here` (a declaration
+  file, a vendored or generated one). The rule is in `graph_export.py` and `graph_query.py`
+  reads it from there; its `test` and `own` flags are the same on that root as before.
+- **Tests and code not written here each have a plane**, after the rest of the code, whatever
+  folder or declared layer the file sits in. A `.test.tsx` beside its component is on the
+  tests plane.
+- **A test file is joined to the file it is about**, by name: `test_x`, `x_test`, `x.test` and
+  `x.spec` are about the target's own `x` in the same language. Among several files of that
+  name the one the test's code links to is taken, else the one in the test's folder, else
+  none. The join is a `tests` link, EXTRACTED when the test's code links into the file too and
+  INFERRED when the name is all there is. On that root 129 of 262 test files are joined, 117
+  of them EXTRACTED.
+- `GRAPH_REPORT.md` has a "Whose code" section with these counts.
+- `tests/test_roles.py` (new): 17 cases; each of 20 rules broken in a copy turns one red.
+
+A test file with no join is not a test of nothing. Its name matched no one file: 133 of the
+262 on that root, such as `test_github_protect.py` and `test_case_envelope.py`, test something
+that is not a file of that name.
+
 ## 3.9.0 (2026-10-07)
 
 The view named a code cluster after its most connected member and drew it on whichever plane

@@ -94,6 +94,13 @@ _ID_UNSAFE = re.compile(r"[^A-Za-z0-9_-]")
 _BACKSLASHES = re.compile(r"\\{2,}")
 _PATH_TOKEN = re.compile(r"[A-Za-z0-9_.$\\/-]+\.[A-Za-z0-9]{1,5}")
 _DRIVE_ROOT = re.compile(r"^[A-Za-z]:[\\/]*[A-Za-z]?$")
+_TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/.]+$|\.(test|spec)\.[^/]+$")
+# Code the target holds but did not write: type declarations, vendored and generated files.
+_NOT_OWN = re.compile(r"\.d\.ts$|(^|/)(vendor|vendored|third_party|node_modules|dist|generated)/")
+# A test file's name without its extension, and the part of it that names what it tests.
+_TEST_NAME = re.compile(r"^(?:test_(.+)|(.+)_test|(.+)\.(?:test|spec))$")
+OWN, TEST, NOT_OWN = "own", "test", "not written here"
+SCRIPT_EXTENSIONS = frozenset({".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"})
 _ID_TOKEN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9_.:-]*[A-Za-z0-9])?")
 
 
@@ -540,6 +547,84 @@ def records_report(graph):
     return out + [""]
 
 
+def is_test(source_file):
+    return bool(source_file) and bool(_TEST_FILE.search(source_file.replace("\\", "/")))
+
+
+def not_written_here(source_file, source_class=None):
+    """True for code the target holds but did not write: declarations, vendored and generated files."""
+    return source_class in ("vendor", "generated") or bool(_NOT_OWN.search((source_file or "").replace("\\", "/")))
+
+
+def code_role(node):
+    """NOT_OWN, TEST or OWN for a code node, from the file it is in."""
+    if not_written_here(node.get("source_file"), node.get("source_class")):
+        return NOT_OWN
+    return TEST if is_test(node.get("source_file")) else OWN
+
+
+def language(rel):
+    """A file's extension, with the JavaScript and TypeScript ones counted as one language."""
+    extension = os.path.splitext(rel)[1].lower()
+    return ".js" if extension in SCRIPT_EXTENSIONS else extension
+
+
+def test_subjects(nodes, links):
+    """Each test file joined to the file it is about, found by name: `test_x`, `x_test`,
+    `x.test` and `x.spec` are about the target's own file `x` in the same language. Where several files have
+    that name the one the test's code links to is taken, or failing that the one in the
+    test's own folder; where that does not settle it the test is about none. The join is a
+    `tests` link, EXTRACTED when the test's code links into that file as well and INFERRED
+    when the name is all there is. Returns the counts for the report."""
+    named, reached = {}, {}
+    for rel, node in nodes.items():
+        if node["kind"] == "file" and node.get("role") == OWN:
+            named.setdefault(os.path.splitext(os.path.basename(rel))[0], []).append(rel)
+    for link in links:
+        a, b = nodes[link["source"]], nodes[link["target"]]
+        if a.get("role") == TEST and b.get("role") == OWN:
+            reached.setdefault(a["source_file"], set()).add(b["source_file"])
+    stats = {"test_files": 0, "with_subject": 0, "linked_too": 0}
+    for rel in sorted(nodes):
+        node = nodes[rel]
+        if node["kind"] != "file" or node.get("role") != TEST:
+            continue
+        stats["test_files"] += 1
+        about = _TEST_NAME.match(os.path.splitext(os.path.basename(rel))[0])
+        found = [f for f in named.get(next(part for part in about.groups() if part), []) if language(f) == language(rel)] \
+            if about else []
+        if len(found) > 1:
+            found = ([f for f in found if f in reached.get(rel, ())]
+                     or [f for f in found if os.path.dirname(f) == os.path.dirname(rel)])
+        if len(found) != 1:
+            continue
+        linked = found[0] in reached.get(rel, ())
+        node["tests"] = found[0]
+        stats["with_subject"] += 1
+        stats["linked_too"] += linked
+        links.append({"source": rel, "target": found[0], "relation": "tests",
+                      "confidence": "EXTRACTED" if linked else "INFERRED",
+                      "confidence_score": 1.0 if linked else INFERRED_SCORE, "source_file": rel,
+                      "concern": node["primary_concern"]})
+    return stats
+
+
+def tests_report(graph):
+    stats = graph["graph"].get("tests") or {}
+    roles = {}
+    for node in graph["nodes"]:
+        if node.get("role"):
+            roles[node["role"]] = roles.get(node["role"], 0) + 1
+    if not roles:
+        return []
+    return ["## Whose code", "",
+            f"Of {sum(roles.values())} code nodes, {roles.get(OWN, 0)} are the target's own, {roles.get(TEST, 0)} are in "
+            f"test files and {roles.get(NOT_OWN, 0)} are in files it holds but did not write (declarations, vendored "
+            f"or generated). {stats.get('with_subject', 0)} of {stats.get('test_files', 0)} test files are joined by name "
+            f"to the file they are about; in {stats.get('linked_too', 0)} of those the test's code links into that file "
+            "as well. A test file with no such join is not a test of nothing: its name matched no one file.", ""]
+
+
 def node_layer(node):
     if node["kind"] in AGENTIC_KINDS:
         return "actors"
@@ -610,6 +695,10 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
         links = merge_code(nodes, links, skipped, code_dir)
     agentic_layer(nodes, links, graphs)
     records = record_layer(nodes, links, graphs, asset_kinds)
+    for node in nodes.values():
+        if node_layer(node) == "code":
+            node["role"] = code_role(node)
+    tests = test_subjects(nodes, links)
 
     pointer_ids, pointed = {}, set()
     for pointer in patterns.get("boundary_pointers") or []:
@@ -661,7 +750,7 @@ def build_graph(graphs, patterns, include_stdlib=False, asset_kinds=None, group_
     graph = {
         "directed": True, "multigraph": True,
         "graph": {"community_labels": {str(i): name for name, i in index.items()}, "grouped_by": group_by,
-                  "skipped": skipped, "records": records},
+                  "skipped": skipped, "records": records, "tests": tests},
         "nodes": [nodes[key] for key in sorted(nodes)],
         "links": links,
     }
@@ -919,6 +1008,7 @@ def render_report(graph, target):
             f"({skipped['merged_pointers']} more merged as second spellings of one path)", ""]
     out += claims_report(graph)
     out += layer_report(graph)
+    out += tests_report(graph)
     out += records_report(graph)
     out += ["## Most connected", ""]
     for node_id in sorted(degree, key=lambda k: (-degree[k], k))[:10]:
