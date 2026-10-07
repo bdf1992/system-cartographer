@@ -1,5 +1,31 @@
 # Releases
 
+## 3.3.0 (2026-10-06)
+
+The graph answers questions, and can sit beside an agent's own search.
+
+- **`scripts/graph_query.py`** (new): `index` once, then `search`, `impact`, `reach`, `path` and
+  `measure`. A dependency is a link whose source needs its target; containment is never followed
+  as one. Impact is given at one, two and three steps, with the files it spans and the test
+  files among them.
+- **`hooks/enrich_search.py`** (new): a Claude Code `PostToolUse` hook for `Grep`, `Glob` and
+  `Read` that adds up to three lines of context about the name searched for and the first files
+  returned. It adds a line only for an exact name or a scanned file, and exits 0 with no output
+  when it has no index, cannot read its input, or has nothing sure to say.
+- On a 21,328-node graph: index built in under a second, 6.9 MB. Each query took 110 to 160 ms
+  as a fresh process (`path` 550 ms). `search write_record` put `write_record()` in
+  `wskernel/store.py` first: 354 direct users, 1,667 in all across 405 files, 209 test files.
+- The hook on six replayed payloads: about 110 ms each once the index is in the file cache, 517
+  ms on the first call after a rebuild; 249 to 514 characters added; nothing added and exit 0
+  for an unknown name, a broken payload and a missing index.
+- `measure` on that graph: 7,281 definitions outside tests; 4,803 have a name nothing else
+  shares; 2,565 are reached by a test through calls; 2,007 are referred to by nothing; median
+  direct users 1, 90th centile 5; 18.9% of dependencies are inferred.
+- Not done: the hook has only been run on payloads written by hand to the documented shape, not
+  inside a live session, and is installed nowhere. Whether the added lines make an agent's work
+  better is not measured: that needs the same questions asked with and without it. Impact is an
+  upper bound, since it follows file-level imports.
+
 ## 3.2.0 (2026-10-06)
 
 Our own node-level view.

@@ -59,6 +59,14 @@ every node that opens from disk: clusters as discs on planes, each opening into 
 there is room and it is under the pointer or selected, with search and a card that lists what
 uses a thing and what it uses. On a 21,328-node graph it draws in under half a second.
 
+## Search, reach and impact
+
+`scripts/graph_query.py` answers, from an index built once: where a thing is, what depends on it
+and how far a change can reach (`impact`), what it depends on (`reach`), how one thing comes to
+depend on another (`path`), and the graph's own measures. `hooks/enrich_search.py` is a Claude
+Code hook that adds those answers as context after an agent's own `Grep`, `Glob` or `Read`,
+without changing the result, and does nothing at all when it has nothing sure to add.
+
 ## The audit
 
 Every claim the run makes about the target, whether the builder said it or the scan supports
