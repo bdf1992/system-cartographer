@@ -13,9 +13,11 @@ What is computed here, once, so that opening the view does no layout work:
             names a declaration (a JSON file with `layers: [{name}]` and `registrations:
             [{selector, layer}]`, selectors being path globs); otherwise on its top folder.
             Actors, each asset kind, names from outside and the boundary get a plane each.
-  cluster   the unit that opens and closes: a code community, the records of one type, or
-            one plane's worth of anything that has neither. A cluster sits on the plane most
-            of its members are on.
+  cluster   the unit that opens and closes: the part of a code community that is on one
+            plane, the records of one type, or one plane's worth of anything that has
+            neither. A code cluster is named for the files it holds, not for its busiest
+            member. A part of a community too small to stand alone joins the cluster on its
+            plane it is linked to most.
   position  planes are packed into rows; inside a plane, clusters start where a spring layout
             of the links between them puts them (when networkx is importable) and are then
             placed largest first, each at the nearest free spot, so none overlap; members sit
@@ -51,6 +53,10 @@ SPACING = 26.0            # world units between two member nodes
 CLUSTER_GAP = 28.0
 PLANE_GAP = 260.0
 SMALL_TYPE = 5            # records of a type before the type is a cluster of its own
+SMALL_PART = 5            # members of a community on one plane before that part is a cluster of its own
+NAME_LENGTH = 72          # of a cluster's name, before anything added to tell two apart
+LABEL_LENGTH = 24
+FOLDER_PARTS = 3          # trailing folders kept in a cluster's name
 KINDS = ["calls", "imports", "uses", "holds", "other"]
 KIND = {"calls": 0, "indirect_call": 0, "imports": 1, "imports_from": 1, "inherits": 1, "re_exports": 1,
         "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2,
@@ -117,6 +123,95 @@ def place_without_overlap(points, radius):
         placed.append((x, y, radius[c]))
 
 
+def tally(names):
+    count = {}
+    for name in names.values():
+        count[name] = count.get(name, 0) + 1
+    return count
+
+
+def code_clusters(nodes, links, plane):
+    """node id -> cluster id, for parsed code. A community is drawn once on each plane it has
+    members on, so nothing sits on a plane that is not its own. A part with fewer than
+    SMALL_PART members joins a cluster on its own plane when it has at least as many links
+    to that cluster as it has inside itself: the cluster it is linked to most, and among
+    equals one holding a file of its own. A small part tied more to itself stands as it is,
+    and one with no link at all goes to its plane's leftovers."""
+    part = {n["id"]: f"code-{n['code_community']}@{plane[n['id']]}" for n in nodes if n.get("code_community") is not None}
+    size, files, inside, pull = tally(part), {}, {}, {}
+    for n in nodes:
+        if n["id"] in part:
+            files.setdefault(part[n["id"]], set()).add(n.get("source_file"))
+    for link in links:
+        a, b = link["source"], link["target"]
+        if a not in part or b not in part:
+            continue
+        if part[a] == part[b]:
+            inside[part[a]] = inside.get(part[a], 0) + 1
+        elif plane[a] == plane[b]:
+            for small, big in ((part[a], part[b]), (part[b], part[a])):
+                if size[small] < SMALL_PART <= size[big]:
+                    row = pull.setdefault(small, {})
+                    row[big] = row.get(big, 0) + 1
+    home = {}
+    for small, row in pull.items():
+        best = min(row, key=lambda c: (-row[c], not files[c] & files[small], c))
+        if row[best] >= inside.get(small, 0):
+            home[small] = best
+
+    def placed(node_id, p):
+        if size[p] >= SMALL_PART or (p not in home and inside.get(p)):
+            return p
+        return home.get(p, f"code-other@{plane[node_id]}")
+
+    return {i: placed(i, p) for i, p in part.items()}
+
+
+def cluster_name(cid, rows):
+    """What a code cluster holds. The folder of its largest file, then that file when it
+    holds half the members, or the two largest files; a file from another folder is said
+    with its folder. Then how many more files there are. Where the files named would hold
+    under a quarter of the members, the name is the count of files and the largest one.
+    A name too long loses the end of its file names, never the count."""
+    if cid.startswith("code-other@"):
+        return f"{cid.split('@', 1)[1]}: other code"
+    files = tally({n["id"]: n.get("source_file") or "" for n in rows})
+    ranked = sorted(files, key=lambda f: (-files[f], f))
+    shown = ranked[:1] if files[ranked[0]] * 2 >= len(rows) else ranked[:2]
+    folder = os.path.dirname(ranked[0])
+
+    def said(file):
+        there = os.path.dirname(file)
+        return os.path.basename(file) if there == folder else f"{os.path.basename(there) or '.'}/{os.path.basename(file)}"
+
+    if sum(files[f] for f in shown) * 4 < len(rows):
+        folders = tally({n["id"]: os.path.dirname(n.get("source_file") or "") for n in rows})
+        folder = max(sorted(folders), key=lambda f: folders[f])
+        body, tail = f"{len(ranked)} files", f", largest {said(ranked[0])}"
+    else:
+        more = len(ranked) - len(shown)
+        body, tail = ", ".join(said(f) for f in shown), f" +{more} file{'s' if more > 1 else ''}" if more else ""
+    prefix = "/".join((folder or ".").split("/")[-FOLDER_PARTS:]) + ": "
+    room = NAME_LENGTH - len(prefix) - len(tail)
+    return prefix + (body if len(body) <= room else body[:max(room - 1, 1)] + ge.ELLIPSIS) + tail
+
+
+def distinct_names(names, plane_of_cluster, busiest):
+    """Two clusters on one plane with one name are told apart by their most connected member,
+    and by a number where that is the same too."""
+    out, taken = dict(names), tally({cid: (plane_of_cluster[cid], name) for cid, name in names.items()})
+    for cid in sorted(names):
+        if taken[(plane_of_cluster[cid], names[cid])] > 1:
+            out[cid] = f"{names[cid]} ({busiest[cid][:LABEL_LENGTH]})"
+    again, seen = tally({cid: (plane_of_cluster[cid], name) for cid, name in out.items()}), {}
+    for cid in sorted(out):
+        key = (plane_of_cluster[cid], out[cid])
+        if again[key] > 1:
+            seen[key] = seen.get(key, 0) + 1
+            out[cid] = f"{out[cid]} #{seen[key]}"
+    return out
+
+
 def build_view(graph, layers, registrations):
     nodes, links = graph["nodes"], graph["links"]
     degree = ge.degrees(graph)
@@ -124,19 +219,13 @@ def build_view(graph, layers, registrations):
     plane = {n["id"]: plane_of(n, registrations) for n in nodes}
     # On its plane, a record type too small to be a cluster of its own is shown with the folder
     # its records sit in, and a folder's worth that is still too small with the other leftovers.
-    def tally(names):
-        count = {}
-        for name in names.values():
-            count[name] = count.get(name, 0) + 1
-        return count
-
     group = {n["id"]: f"{plane[n['id']]}: {n['record_type']}" for n in nodes if n.get("record_type")}
     for fallback in ({n["id"]: os.path.basename(os.path.dirname(n["source_file"])) for n in nodes}, {}):
         held = tally(group)
         group = {i: name if held[name] >= SMALL_TYPE else f"{plane[i]}: {fallback.get(i, 'other')}"
                  for i, name in group.items()}
-    cluster = {n["id"]: f"code-{n['code_community']}" if n.get("code_community") is not None
-               else group.get(n["id"], plane[n["id"]]) for n in nodes}
+    code = code_clusters(nodes, links, plane)
+    cluster = {n["id"]: code.get(n["id"]) or group.get(n["id"], plane[n["id"]]) for n in nodes}
     members = {}
     for n in nodes:
         members.setdefault(cluster[n["id"]], []).append(n)
@@ -188,9 +277,22 @@ def build_view(graph, layers, registrations):
 
     cluster_ids = sorted(members, key=lambda c: (order.index(cluster_plane[c]), -len(members[c]), c))
     cindex = {c: i for i, c in enumerate(cluster_ids)}
+    # A claim is about a whole community; it is shown once, on the cluster its busiest member is in.
+    holder, shown_claims = {}, {}
+    for n in sorted(nodes, key=lambda n: (-degree[n["id"]], n["id"])):
+        if n.get("code_community") is not None:
+            holder.setdefault(f"code-{n['code_community']}", cluster[n["id"]])
+    for unit, rows in claims.items():
+        here = holder.get(unit, unit)    # on another community's cluster a claim says which unit it is about
+        shown_claims.setdefault(here, []).extend(
+            f"{c['id']} {c['verdict'] or c['state']}" + ("" if here.split("@")[0] == unit else f" ({unit})") for c in rows)
+    ranked = {cid: sorted(rows, key=lambda n: (-degree[n["id"]], n["id"])) for cid, rows in members.items()}
+    names = distinct_names({cid: cluster_name(cid, rows) if cid.startswith("code-") else cid for cid, rows in members.items()},
+                           cluster_plane, {cid: str(next((n for n in rows if n["kind"] != "file"), rows[0])["label"])
+                                           for cid, rows in ranked.items()})
     out_nodes, node_index, clusters = [], {}, []
     for cid in cluster_ids:
-        rows = sorted(members[cid], key=lambda n: (-degree[n["id"]], n["id"]))
+        rows = ranked[cid]
         cx, cy = centers[cid]
         start = len(out_nodes)
         for i, n in enumerate(rows):                    # a sunflower disc: the busiest member at the centre
@@ -199,16 +301,10 @@ def build_view(graph, layers, registrations):
             out_nodes.append([round(cx + r * math.cos(t), 1), round(cy + r * math.sin(t), 1), degree[n["id"]],
                               str(n["label"])[:48], n["kind"], n.get("source_file") or "",
                               sum((n.get("lint") or {}).values())])
-        name = cid
-        if cid.startswith("code-"):
-            folders = {}
-            for n in rows:
-                folder = os.path.dirname(n.get("source_file") or "") or "."
-                folders[folder] = folders.get(folder, 0) + 1
-            name = f"{max(sorted(folders), key=lambda f: folders[f])}: {rows[0]['label']}"
-        clusters.append({"id": cid, "name": name[:60], "plane": order.index(cluster_plane[cid]), "x": round(cx, 1),
-                         "y": round(cy, 1), "r": round(radius[cid], 1), "start": start, "count": len(rows),
-                         "claims": [f"{c['id']} {c['verdict'] or c['state']}" for c in claims.get(cid, [])]})
+        community = cid.split("@")[0] if cid.startswith("code-") and not cid.startswith("code-other@") else None
+        clusters.append({"id": cid, "name": names[cid], "community": community, "plane": order.index(cluster_plane[cid]),
+                         "x": round(cx, 1), "y": round(cy, 1), "r": round(radius[cid], 1), "start": start, "count": len(rows),
+                         "claims": shown_claims.get(cid, [])})
     return {
         "planes": [boxes[p] for p in order], "clusters": clusters, "nodes": out_nodes, "kinds": KINDS,
         "edges": [[node_index[l["source"]], node_index[l["target"]], KIND.get(l["relation"], 4),
