@@ -1,5 +1,39 @@
 # Releases
 
+## 3.6.0 (2026-10-07)
+
+Round three of the trials. An agent that believes every line and never checks was wrong on
+three of eight jobs, down from six of seven, and all three had one cause: the parse does not
+link a function reached as `module.name()` or passed by name, so its real users were missing.
+Cautious wording does not repair that, and the same agent reported that the caution, printed on
+nearly every card, teaches a reader to skip it.
+
+- **`graph_query.py index` records where each defined name is written.** `written_in` reads
+  the scanned files once and keeps, for every function and class name of four letters or more,
+  the files that write it. It is a fact about text beside the parsed links. The index also
+  records the date of the graph it was built from.
+- **The hook reports those files.** `its name is also written in ...` names the files the parse
+  did not link, and `tests that write its name` the test files. A name with several
+  definitions written in more than 40 files is said to be too common to search by.
+- **An absence is now a checked fact where it can be.** `no other file uses it or writes its
+  name` and `no test names it` are printed only when the text was searched; elsewhere the hook
+  still says what the map cannot see.
+- **Wording from a reader given no explanation:** `its file is for:` in place of `its file:`;
+  the map's date in the heading; the undefined `claims on its cluster` line is gone; guessed
+  links are not mentioned when the text search covers them.
+
+A third agent, set to make the hook crash or lie, found no input that raised or hung, and four
+defects.
+
+- **A copy of a file reads its own source.** In a worktree the signature, docstring and line
+  number came from the mapped checkout, so a function at line 3261 was shown at 2167. They are
+  now read from the copy, and the card says the users are the mapped checkout's.
+- **Uses in the thing's own file are counted from the syntax tree,** for Python: a bare name
+  for a function, `self.name` or `Class.name` for a method. Counting the word gave "named 46
+  more times" to a function its file never calls. Other languages say "written".
+- **A thing the map holds that is no longer in the file says so.**
+- **Cards left out for room are counted,** and Python advice stays on Python files.
+
 ## 3.5.1 (2026-10-07)
 
 An agent was asked to believe every line of the search hook and never check, on six small jobs

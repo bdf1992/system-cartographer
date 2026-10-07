@@ -34,6 +34,7 @@ MAX_SUBJECTS = 3
 MAX_CHARS = 2000
 MAX_LINE = 220
 MAX_NAMED = 4
+MAX_COMMON = 40            # a name written in more files than this cannot be told apart by name
 MIN_SENTENCE = 40
 MAX_SEVERAL = 6          # more definitions than this is a common word, and is not listed
 MAX_PATHS = 60             # returned files looked up; a search returning more is not about any of them
@@ -82,10 +83,9 @@ def note_for(notes, file):
     return next((value for pattern, value in notes.items() if "*" in pattern and fnmatch.fnmatch(key, pattern)), None)
 
 
-def own_uses(root, row):
+def own_uses(full, row):
     """How many more times a name is written in its own file, counted in the file as it is now.
     The map's links leave these out or miss them; a function called only by its neighbours is in use."""
-    full = os.path.join(root or "", row["file"])
     name = row["label"].rstrip("()").lstrip(".").split(".")[-1]
     if row["kind"] == "file" or not name or not os.path.isfile(full) or os.path.getsize(full) > MAX_SOURCE:
         return 0
@@ -160,13 +160,13 @@ def file_node(index, lowered, subject, cwd):
     inside = root and given.lower().startswith(root.lower() + "/")
     exact = lowered.get(given.lower()[len(root) + 1:] if inside else "/".join(parts))
     if exact:
-        return next((i for i in index["files"][exact] if nodes[i]["kind"] == "file"), None)
+        return next((i for i in index["files"][exact] if nodes[i]["kind"] == "file"), None), None
     full = given if os.path.isabs(subject) else os.path.join(cwd or root, subject)
     for k in range(1, len(parts) - 1):
         real = lowered.get("/".join(parts[k:]))
         if real and same_start(full, os.path.join(root, real)):
-            return next((i for i in index["files"][real] if nodes[i]["kind"] == "file"), None)
-    return None
+            return next((i for i in index["files"][real] if nodes[i]["kind"] == "file"), None), full
+    return None, None
 
 
 def name_nodes(index, name, returned):
@@ -194,20 +194,19 @@ def clip(text):
     return text if len(text) <= MAX_LINE else text[:MAX_LINE - 3].rstrip() + "..."
 
 
-def from_source(root, row):
+def from_source(full, row):
     """What the code says about itself, read from the file as it is now: the first sentence of the
-    docstring, for a function its signature, and for a method its class. A file that will not
-    parse says nothing."""
+    docstring, a function's signature, a method's class, the line it is on today, and how many
+    more times it is used in its own file. A file that will not parse says nothing."""
     import ast
-    full = os.path.join(root or "", row["file"])
     if not row["file"].endswith(".py") or not os.path.isfile(full) or os.path.getsize(full) > MAX_SOURCE:
-        return None, None, None
+        return {}
     try:
         with open(full, encoding="utf-8", errors="replace") as handle:
             tree = ast.parse(handle.read())
-    except (OSError, SyntaxError, ValueError):
-        return None, None, None
-    node, signature, owner = tree, None, None
+    except (OSError, SyntaxError, ValueError, RecursionError):
+        return {}
+    node, said = tree, {}
     if row["kind"] != "file":
         name = row["label"].rstrip("()").lstrip(".").split(".")[-1]
         line = int("".join(ch for ch in str(row["line"] or "").split("-")[0] if ch.isdigit()) or 0)
@@ -215,15 +214,24 @@ def from_source(root, row):
         same = [(n, parent) for parent in ast.walk(tree) for n in ast.iter_child_nodes(parent)
                 if isinstance(n, kinds) and n.name == name]
         if not same:
-            return None, None, None
+            return {"gone": True}
         node, parent = min(same, key=lambda pair: abs(pair[0].lineno - line))    # the map's line may have drifted
         owner = parent.name if isinstance(parent, ast.ClassDef) else None
+        said.update(owner=owner, line=node.lineno)
         if not isinstance(node, ast.ClassDef):
-            signature = clip(f"{name}({ast.unparse(node.args)})")
+            said["signature"] = clip(f"{name}({ast.unparse(node.args)})")
+        # Uses, not mentions: a bare name for a function or class, self.name or Class.name for a method.
+        holders = {"self", "cls", owner}
+        said["inside"] = sum(
+            1 for n in ast.walk(tree)
+            if (isinstance(n, ast.Name) and n.id == name and not owner)
+            or (isinstance(n, ast.Attribute) and n.attr == name and owner
+                and isinstance(n.value, ast.Name) and n.value.id in holders))
     doc = (ast.get_docstring(node) or "").strip().split("\n\n")[0].replace("\n", " ")
     stop = re.search(r"(?<!e\.g)(?<!i\.e)(?<!etc)(?<!vs)\.\s", doc)
     # A first sentence too short to say anything ("(allowed, reason).") is followed by the rest.
-    return clip(doc[:stop.start() + 1] if stop and stop.start() >= MIN_SENTENCE else doc) or None, signature, owner
+    said["does"] = clip(doc[:stop.start() + 1] if stop and stop.start() >= MIN_SENTENCE else doc) or None
+    return said
 
 
 def by_file(index, ids, own):
@@ -254,59 +262,93 @@ def users(index, start):
     return read, guessed - read
 
 
-def card(gq, index, i, notes):
+def card(gq, index, i, notes, copy=None):
     """One thing the search turned up, as a few whole lines: what it is, what the code says it
     does, what is on record about its file, and who uses it by name."""
     row = index["nodes"][i]
-    where = f"{row['file']}{' ' + str(row['line']) if row['line'] else ''}" if row["file"] else row["layer"]
-    does, signature, owner = from_source(index.get("root"), row) if row["file"] else (None, None, None)
+    full = copy or os.path.join(index.get("root") or "", row["file"])
+    source = from_source(full, row) if row["file"] else {}
+    does, signature, owner = source.get("does"), source.get("signature"), source.get("owner")
+    line = f"L{source['line']}" if source.get("line") else row["line"]
+    where = f"{row['file']}{' ' + str(line) if line else ''}" if row["file"] else row["layer"]
     method = row["label"].startswith(".") or bool(owner)
     label = f"{owner}{row['label'] if row['label'].startswith('.') else '.' + row['label']}" if owner else row["label"]
     lines = [f"- {label} ({'method' if method else row['kind']}, {where})"]
+    if copy:
+        lines.append("  you are in a copy of this file: the lines read from it are this copy's, the users are the mapped checkout's")
+    if source.get("gone"):
+        lines.append("  the map has it here, and it is not in the file now: moved, renamed or removed since the map was built")
     if signature:
         lines.append(f"  signature: {signature}")
     if does:
         lines.append(f"  does: {does}")
     note = note_for(notes, row["file"])
     if isinstance(note, dict) and note.get("about") and note["about"] != does:
-        lines.append(f"  {'about' if row['kind'] == 'file' else 'its file'}: {note['about']}")
+        lines.append(f"  {'about' if row['kind'] == 'file' else 'its file is for'}: {note['about']}")
     lines += known(dict(note, about=None)) if isinstance(note, dict) else []
     parsed = row["layer"] == "code"
-    if notes and not note and not does and parsed and row["kind"] == "file" and not row["test"]:
+    if notes and not note and not does and row["file"].endswith(".py") and row["kind"] == "file" and not row["test"]:
         lines.append("  it has no docstring and nothing is on record about it; if you learn what it is for, add a docstring")
     read, guessed = users(index, gq.start_set(index, i))
     code, tests = by_file(index, read, row["file"])
     if code:
-        lines.append(f"  referred to from {named(code)}")
-    inside = own_uses(index.get("root"), row)
-    if inside:
-        lines.append(f"  named {inside} more time{'' if inside == 1 else 's'} in its own file")
+        lines.append(f"  used from {named(code)}")
+    if "inside" in source:
+        inside = source["inside"]
+        if inside:
+            lines.append(f"  used {inside} time{'' if inside == 1 else 's'} in its own file")
+    else:
+        inside = own_uses(full, row)             # not Python: the text is all there is to count
+        if inside:
+            lines.append(f"  written {inside} more time{'' if inside == 1 else 's'} in its own file")
+    # Beside the links the parse read: the files where the name is written at all. That catches
+    # module.name(), a function passed by name, and a name in a string, which the parse does not link.
+    name = row["label"].rstrip("()").lstrip(".").split(".")[-1]
+    searched = "written" in index and row["kind"] != "file" and len(name) >= 4
+    total, rows = index["written"].get(name, (0, [])) if searched else (0, [])
+    # A name with one definition is that thing wherever it is written; a shared name in many files is not.
+    wide = total > MAX_COMMON
+    common = wide and len(index["names"].get(name.lower(), [])) > 1
+    linked = {path for path, _n in code + tests} | {row["file"]}
+    more_code, more_tests = [], []
+    for j, times in ([] if wide else rows):
+        other = index["nodes"][j]
+        if other["file"] not in linked:
+            (more_tests if other["test"] else more_code).append((other["file"], times))
+    if common:
+        lines.append(f"  its name is written in {total} files: too common to find its users by name")
+    elif wide:
+        lines.append(f"  its name is written in {total} files in all")
+    elif more_code:
+        lines.append(f"  its name is also written in {named(more_code)}")
     if tests:
-        lines.append(f"  tests that refer to it directly, {named(tests)}")
-    elif not row["test"]:
-        # A function no test names is usually tested through its file or its callers. Say what is known.
+        lines.append(f"  tests that use it, {named(tests)}")
+    if more_tests:
+        lines.append(f"  tests that write its name, {named(more_tests)}")
+    if not tests and not more_tests and not row["test"]:
         whole = next((j for j in index["files"].get(row["file"], []) if index["nodes"][j]["kind"] == "file"), None)
         around = users(index, gq.start_set(index, whole))[0] if whole is not None else set()
-        near = by_file(index, around, row["file"])[1]
-        lines.append(f"  no test names it in the map; tests that refer to its file, {named(near)}" if near else
-                     "  the map links no test to it or its file; that is not evidence it is untested")
-    # An absence is only ever "not seen": the parse misses what it cannot resolve.
+        stem = os.path.splitext(os.path.basename(row["file"]))[0].lower()
+        # Of the tests that import the file, the one named for it comes first.
+        near = sorted(by_file(index, around, row["file"])[1], key=lambda item: (stem not in item[0].lower(), -item[1], item[0]))
+        said = "no test names it" if searched and not wide else "the map links no test to it"
+        lines.append(f"  {said}; tests that import its file, {named(near)}" if near else f"  {said}, and none imports its file")
     if not parsed and not read:
         lines.append("  this kind of file is not parsed for links; search for its name to find what reads it")
-    elif not code:
-        unseen = "calls through an object (x.name()) or a module (module.name())" if method or row["kind"] != "file" \
-            else "loads by name (command tables, importlib, test discovery, config)"
-        lines.append(f"  the map links no other file to it. It does not see {unseen}, so this is not evidence "
-                     "it is unused; search for its name")
-    if guessed:
+    elif not code and not more_code and not wide:
+        if row["kind"] == "file":
+            lines.append("  the map links no other file to it; it does not see a file loaded by name "
+                         "(a command table, a dynamic import, config), so search for its name")
+        elif searched:
+            lines.append("  no other file uses it or writes its name")
+        else:
+            lines.append("  the map links no other file to it; it does not see x.name() or module.name(), so search for its name")
+    if guessed and "written" not in index:
         files = {index["nodes"][j]["file"] for j in guessed} - {row["file"], ""}
         if files:
-            lines.append(f"  {len(files)} more file{'' if len(files) == 1 else 's'} matched by name only, unchecked and not listed")
-    extra = [f"{row['lint']} lint finding{'' if row['lint'] == 1 else 's'} (ruff)" if row["lint"] else "",
-             "claims on its cluster: " + ", ".join(index["claims"].get(row["cluster"], []))
-             if index["claims"].get(row["cluster"]) else ""]
-    if any(extra):
-        lines.append("  " + "; ".join(item for item in extra if item))
+            lines.append(f"  {len(files)} more file{'' if len(files) == 1 else 's'} guessed from the name alone, not verified, not listed")
+    if row["lint"]:
+        lines.append(f"  {row['lint']} lint finding{'' if row['lint'] == 1 else 's'} (ruff)")
     return lines
 
 
@@ -319,8 +361,10 @@ def enrich(payload):
     notes = load_notes(path)
     names, paths = subjects(payload)
     nodes, lowered = index["nodes"], {key.lower(): key for key in index["files"]}
-    file_ids = [i for i in dict.fromkeys(file_node(index, lowered, item, payload.get("cwd")) for item in paths[:MAX_PATHS])
-                if i is not None]
+    found = dict(pair for pair in (file_node(index, lowered, item, payload.get("cwd")) for item in paths[:MAX_PATHS])
+                 if pair[0] is not None)
+    file_ids = list(found)
+    copies = {nodes[i]["file"]: full for i, full in found.items() if full}
     returned = {nodes[i]["file"] for i in file_ids}
     blocks = []
     for name in names:
@@ -330,18 +374,20 @@ def enrich(payload):
     # A function shown stands for its file. Of many files, the most used come first, tests last.
     rest = [i for i in file_ids if nodes[i]["file"] not in shown]
     blocks += [(i, None) for i in sorted(rest, key=lambda i: (nodes[i]["test"], -len(index["used_by"][i])))]
-    head = "From the system map (graph_query.py impact <name> for everything a change reaches):"
+    head = (f"From the system map{' of ' + index['built'] if index.get('built') else ''} "
+            "(graph_query.py impact <name> for everything a change reaches):")
     lines, count = [head], 0
     for i, said in blocks:
-        block = said or card(gq, index, i, notes)
+        block = said or card(gq, index, i, notes, copies.get(nodes[i]["file"]))
         if len("\n".join(lines + block)) > MAX_CHARS:
             break                                   # whole cards only; a line is never cut
         lines += block
         count += 1
         if count == MAX_SUBJECTS:
             break
-    if count and len(file_ids) > MAX_SUBJECTS:
-        lines.append(f"({len(file_ids)} of the files returned are in the map; the most used are shown)")
+    if count and len(blocks) > count:
+        lines.append(f"({len(blocks) - count} more of what this search returned are in the map and not shown; "
+                     "the most used come first)")
     return "\n".join(lines) if count else None
 
 
