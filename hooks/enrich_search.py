@@ -19,6 +19,9 @@ working directory or any folder above it. Build one with:
 It never blocks and never fails a tool: with no index, an index it cannot read, a payload it
 does not understand, or nothing worth adding, it prints nothing and exits 0. Set
 CARTOGRAPHER_ENRICH=off to switch it off. Standard library only.
+
+Where a notes file exists ($CARTOGRAPHER_NOTES, else notes.json beside the index), each file's
+written description, its metadata and a pointer to where more is kept follow its line.
 """
 import json
 import os
@@ -46,6 +49,33 @@ def find_index(cwd):
         if parent == folder:
             return None
         folder = parent
+
+
+def load_notes(index_path):
+    """What has been written down about each file, keyed by its path in the map.
+
+    {"notes": {"<path>": {"about": "one sentence", "meta": {"layer": "..."}, "see": ["where more is"]}}}
+    Found at $CARTOGRAPHER_NOTES, else notes.json beside the index. Absent or unreadable is no notes.
+    """
+    path = os.environ.get("CARTOGRAPHER_NOTES") or os.path.join(os.path.dirname(index_path), "notes.json")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            notes = json.load(handle).get("notes")
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return {key.replace("\\", "/").lower(): value for key, value in notes.items()} if isinstance(notes, dict) else {}
+
+
+def known(note):
+    """A note as lines: what the file is for, then its metadata, then where to read more."""
+    if not isinstance(note, dict):
+        return []
+    lines = [f"  about: {note['about']}"] if note.get("about") else []
+    if isinstance(note.get("meta"), dict) and note["meta"]:
+        lines.append("  " + ", ".join(f"{key} {value}" for key, value in note["meta"].items()))
+    if note.get("see"):
+        lines.append("  see: " + "; ".join(str(item) for item in note["see"][:3]))
+    return lines
 
 
 def subjects(payload):
@@ -82,7 +112,8 @@ def enrich(payload):
     if path is None:
         return None
     index = gq.read_json(path)
-    lines, used = [], set()
+    notes = load_notes(path)
+    lines, used, noted, count = [], set(), set(), 0
     for subject in subjects(payload):
         hits = gq.find(index, subject, limit=1)
         # A file path must name a scanned file; a name must be an exact name. A near miss says nothing.
@@ -94,8 +125,20 @@ def enrich(payload):
         if not exact:
             continue
         used.add(hits[0])
-        lines.append("- " + gq.one_line(gq.describe(index, hits[0])))
-        if len(lines) == MAX_SUBJECTS:
+        head, _, counts = gq.one_line(gq.describe(index, hits[0])).partition("): ")
+        note = notes.get(row["file"].lower()) if row["file"] not in noted else None
+        if note and note.get("about"):
+            # What the file is for leads; the counts are metadata under it.
+            noted.add(row["file"])
+            about = note["about"] if row["kind"] == "file" else f"in the file whose job is: {note['about']}"
+            lines += [f"- {head}): {about}"] + known(dict(note, about=None)) + ["  " + counts]
+        else:
+            lines.append(f"- {head}): {counts}")
+            if notes and not row["test"] and row["file"] not in noted:
+                # A gap is said out loud, so whoever is in the file is asked to fill it.
+                lines.append("  nothing is written down about this file yet")
+        count += 1
+        if count == MAX_SUBJECTS:
             break
     if not lines:
         return None

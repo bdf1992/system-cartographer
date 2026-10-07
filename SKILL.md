@@ -460,6 +460,9 @@ It reads the index named by `CARTOGRAPHER_INDEX`, else `.cartographer/graph-inde
 in the working directory or any folder above. It adds a line only for an exact name or a
 scanned file; a near miss adds nothing. With no index, an unreadable one, an unfamiliar
 payload or nothing to add, it prints nothing and exits 0, so it cannot fail a tool.
+Where a notes file exists (`CARTOGRAPHER_NOTES`, else `notes.json` beside the index, shaped
+`{"notes": {"<path>": {"about": "...", "meta": {...}, "see": [...]}}}`), a file's written
+description leads, its metadata and a pointer follow, and a file with no note is named as a gap.
 `CARTOGRAPHER_ENRICH=off` switches it off. The index is a snapshot: rebuild it when the
 code has moved, or the lines describe the code as it was.
 

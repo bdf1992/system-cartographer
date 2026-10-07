@@ -1,5 +1,16 @@
 # Releases
 
+## 3.4.0 (2026-10-06)
+
+The search hook led with raw counts. The owner asked that it lead with what is known about a
+file, with the counts as metadata under that.
+
+- **`hooks/enrich_search.py` reads a notes file.** `$CARTOGRAPHER_NOTES`, else `notes.json`
+  beside the index: `{"notes": {"<path>": {"about": "...", "meta": {...}, "see": [...]}}}`.
+  A file's description comes first, then its metadata, then where to read more, then the counts.
+- **A gap is said.** Where a notes file exists and holds nothing for a file, the hook says
+  nothing is written down about it yet. With no notes file the output is as it was.
+
 ## 3.3.1 (2026-10-06)
 
 `measure` printed numbers that read as a verdict and were wrong in the alarming direction. The
