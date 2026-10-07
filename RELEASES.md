@@ -18,6 +18,22 @@ wrong. The hook was right about what it found and misleading about what it did n
   purpose reach every file in it.
 - **The gap line no longer points at a file outside the tree.**
 
+A second agent, set to break name matching and wording, reported ten more defects.
+
+- **A user the map only guessed from a name is never named.** A method called `json` was shown
+  as used by four files that import the `json` module. Guessed links are now a count, marked
+  unchecked.
+- **Every definition of a searched name in the returned files is shown,** with its class for a
+  method; two methods of one name in one file were one card.
+- **A path only matches a mapped file it is a copy of.** A file in another project that ended
+  with the same two path parts got the mapped file's facts; the two files must now begin alike.
+- **Patterns give up their name:** `^def guard`, `guard\s*\(`, `write_record\(.*overwrite`.
+  A dotted name is only answered in a returned file, and a word with many definitions is not
+  listed.
+- **A docstring is not cut at "e.g.",** a first sentence too short to say anything is followed
+  by the rest, and a clipped line ends in an ellipsis.
+- **Of many returned files, the most used are shown,** tests last.
+
 ## 3.5.0 (2026-10-07)
 
 Four agents used the search hook on real work (tracing a path, planning a change, orienting as
