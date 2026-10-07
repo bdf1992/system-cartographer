@@ -69,6 +69,30 @@ def load_notes(index_path):
     return {key.replace("\\", "/").lower(): value for key, value in notes.items()} if isinstance(notes, dict) else {}
 
 
+def note_for(notes, file):
+    """The note for a file: its own entry, else the first entry whose key is a pattern it matches
+    (wskernel/commands/*), so a folder can be described once."""
+    import fnmatch
+    key = file.lower()
+    if key in notes:
+        return notes[key]
+    return next((value for pattern, value in notes.items() if "*" in pattern and fnmatch.fnmatch(key, pattern)), None)
+
+
+def own_uses(root, row):
+    """How many more times a name is written in its own file, counted in the file as it is now.
+    The map's links leave these out or miss them; a function called only by its neighbours is in use."""
+    full = os.path.join(root or "", row["file"])
+    name = row["label"].rstrip("()").lstrip(".").split(".")[-1]
+    if row["kind"] == "file" or not name or not os.path.isfile(full) or os.path.getsize(full) > MAX_SOURCE:
+        return 0
+    try:
+        with open(full, encoding="utf-8", errors="replace") as handle:
+            return max(0, len(re.findall(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", handle.read())) - 1)
+    except OSError:
+        return 0
+
+
 def known(note):
     """A note as lines: what the file is for, then its metadata, then where to read more."""
     if not isinstance(note, dict):
@@ -175,7 +199,7 @@ def named(files):
     return f"{len(files)} file{'' if len(files) == 1 else 's'}: {text}" + (" ..." if len(files) > MAX_NAMED else "")
 
 
-def card(gq, index, i, notes, notes_path):
+def card(gq, index, i, notes):
     """One thing the search turned up, as a few whole lines: what it is, what the code says it
     does, what is on record about its file, and who uses it by name."""
     row = index["nodes"][i]
@@ -186,26 +210,36 @@ def card(gq, index, i, notes, notes_path):
         lines.append(f"  signature: {signature}")
     if does:
         lines.append(f"  does: {does}")
-    note = notes.get(row["file"].lower())
+    note = note_for(notes, row["file"])
     if isinstance(note, dict) and note.get("about") and note["about"] != does:
         lines.append(f"  {'about' if row['kind'] == 'file' else 'its file'}: {note['about']}")
     lines += known(dict(note, about=None)) if isinstance(note, dict) else []
     parsed = row["layer"] == "code"
     if notes and not note and not does and parsed and row["kind"] == "file" and not row["test"]:
-        # A gap is said with the place to fill it, so it is a job and not a remark.
-        lines.append(f"  no description on record or in the file: add a docstring, or an entry in {notes_path}")
+        lines.append("  it has no docstring and nothing is on record about it; if you learn what it is for, add a docstring")
     start = gq.start_set(index, i)
     direct = {j for s in start for j, _relation, _inferred in index["used_by"][s] if j not in start}
     code, tests = by_file(index, direct, row["file"])
     if code:
         lines.append(f"  referred to from {named(code)}")
+    inside = own_uses(index.get("root"), row)
+    if inside:
+        lines.append(f"  named {inside} more time{'' if inside == 1 else 's'} in its own file")
     if tests:
         lines.append(f"  tests that refer to it directly, {named(tests)}")
-    if not direct:
-        # The parse misses links it cannot resolve, and does not parse every kind of file.
-        lines.append("  no links found in the map" if parsed else "  this kind of file is not parsed for links; search for its name")
-    elif not tests and not row["test"]:
-        lines.append("  no test refers to it directly in the map")
+    elif not row["test"]:
+        # A function no test names is usually tested through its file or its callers. Say what is known.
+        whole = next((j for j in index["files"].get(row["file"], []) if index["nodes"][j]["kind"] == "file"), None)
+        around = gq.start_set(index, whole) if whole is not None else set()
+        _code, near = by_file(index, {j for s in around for j, _r, _f in index["used_by"][s] if j not in around}, row["file"])
+        lines.append(f"  no test names it in the map; tests that refer to its file, {named(near)}" if near else
+                     "  the map links no test to it or its file; that is not evidence it is untested")
+    # An absence is only ever "not seen": the parse misses what it cannot resolve.
+    if not parsed and not direct:
+        lines.append("  this kind of file is not parsed for links; search for its name to find what reads it")
+    elif not code:
+        lines.append("  the map links no other file to it. It does not see loads by name (command tables, importlib, "
+                     "test discovery, config), so this is not evidence it is unused; search for its name")
     extra = [f"{row['lint']} lint finding{'' if row['lint'] == 1 else 's'} (ruff)" if row["lint"] else "",
              "claims on its cluster: " + ", ".join(index["claims"].get(row["cluster"], []))
              if index["claims"].get(row["cluster"]) else ""]
@@ -221,7 +255,6 @@ def enrich(payload):
         return None
     index = gq.read_json(path)
     notes = load_notes(path)
-    notes_path = os.environ.get("CARTOGRAPHER_NOTES") or os.path.join(os.path.dirname(path), "notes.json")
     names, paths = subjects(payload)
     lowered = {key.lower(): key for key in index["files"]}
     file_ids = [i for i in dict.fromkeys(file_node(index, lowered, item) for item in paths) if i is not None]
@@ -239,7 +272,7 @@ def enrich(payload):
         # One card per file: a function already shown stands for the file it is in.
         if i is not None and index["nodes"][i]["file"] in files:
             continue
-        block = said or card(gq, index, i, notes, notes_path)
+        block = said or card(gq, index, i, notes)
         if len("\n".join(lines + block)) > MAX_CHARS:
             break                                   # whole cards only; a line is never cut
         if i is not None:

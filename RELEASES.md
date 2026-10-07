@@ -1,5 +1,23 @@
 # Releases
 
+## 3.5.1 (2026-10-07)
+
+An agent was asked to believe every line of the search hook and never check, on six small jobs
+(safe to delete, which tests to run, safe to rename, dead code), and a reviewer then checked
+each conclusion. Six of seven conclusions drawn from a line that said nothing, or said no, were
+wrong. The hook was right about what it found and misleading about what it did not.
+
+- **Uses inside the thing's own file are counted,** from the file as it is now. A function
+  called only by its neighbours showed no users and read as safe to delete.
+- **A function no test names falls back to the tests of its file.** "No test refers to it
+  directly" read as "run no tests".
+- **An absence is only ever "not seen".** Where the map links no other file, the hook says so
+  and names what the map cannot see (loads by name: command tables, importlib, test discovery,
+  config), and that it is not evidence of non-use.
+- **A note may be keyed by a pattern** (`wskernel/commands/*`), so a folder's component and
+  purpose reach every file in it.
+- **The gap line no longer points at a file outside the tree.**
+
 ## 3.5.0 (2026-10-07)
 
 Four agents used the search hook on real work (tracing a path, planning a change, orienting as
