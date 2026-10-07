@@ -12,8 +12,8 @@ What is computed here, once, so that opening the view does no layout work:
   plane     a domain. Code goes on the layer its target declares for it when --structure
             names a declaration (a JSON file with `layers: [{name}]` and `registrations:
             [{selector, layer}]`, selectors being path globs); otherwise on its top folder,
-            marked "(no declared layer)" where the declaration places other code of that
-            folder, and counted in the run's summary.
+            marked "(no layer)" where the declaration places other code of that folder;
+            the run's summary names those files.
             Actors, each asset kind, names from outside and the boundary get a plane each.
   cluster   the unit that opens and closes: the part of a code community that is on one
             plane, the records of one type, or one plane's worth of anything that has
@@ -63,7 +63,7 @@ KINDS = ["calls", "imports", "uses", "holds", "other"]
 KIND = {"calls": 0, "indirect_call": 0, "imports": 1, "imports_from": 1, "inherits": 1, "re_exports": 1,
         "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2, "names": 2, "tests": 2,
         "contains": 3, "method": 3, "defines": 3, "binds": 3}
-NO_LAYER = " (no declared layer)"
+NO_LAYER = " (no layer)"    # short: the viewer cuts a plane's label to its width
 FIRST_PLANES = ["actors"]
 # Code that is not the target's own running code has a plane of its own, after the rest of the code.
 ROLE_PLANES = {ge.TEST: "tests", ge.NOT_OWN: "code not written here"}
@@ -87,9 +87,11 @@ def declared_layer(rel, registrations):
 
 
 def covered_folders(nodes, registrations):
-    """The top folders a structure declaration speaks for: those with code it places on a layer."""
+    """The top folders a structure declaration speaks for: those with code it puts on a layer.
+    A test or a file not written here is on its own plane whatever the declaration says, so it
+    does not make its folder one."""
     return {n["source_file"].split("/")[0] for n in nodes
-            if n["layer"] == "code" and declared_layer(n["source_file"], registrations)}
+            if n["layer"] == "code" and n.get("role") not in ROLE_PLANES and declared_layer(n["source_file"], registrations)}
 
 
 def plane_of(node, registrations, covered=()):
@@ -333,12 +335,12 @@ def build_view(graph, layers, registrations):
         clusters.append({"id": cid, "name": names[cid], "community": community, "plane": order.index(cluster_plane[cid]),
                          "x": round(cx, 1), "y": round(cy, 1), "r": round(radius[cid], 1), "start": start, "count": len(rows),
                          "claims": shown_claims.get(cid, [])})
-    unplaced = {}
+    unplaced = {}    # plane -> the files whose code is on it, whether or not the file itself is a node
     for n in nodes:
-        if n["kind"] == "file" and plane[n["id"]].endswith(NO_LAYER):
-            unplaced[plane[n["id"]]] = unplaced.get(plane[n["id"]], 0) + 1
+        if plane[n["id"]].endswith(NO_LAYER) and n.get("source_file"):
+            unplaced.setdefault(plane[n["id"]], set()).add(n["source_file"])
     return {
-        "unplaced": unplaced,
+        "unplaced": {name: sorted(files) for name, files in sorted(unplaced.items())},
         "planes": [boxes[p] for p in order], "clusters": clusters, "nodes": out_nodes, "kinds": KINDS,
         "edges": [[node_index[l["source"]], node_index[l["target"]], KIND.get(l["relation"], 4),
                    1 if l["confidence"] == "INFERRED" else 0] for l in links],
