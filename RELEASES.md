@@ -1,5 +1,27 @@
 # Releases
 
+## 3.2.0 (2026-10-06)
+
+Our own node-level view.
+
+- **`scripts/graph_view.py`** and **`references/viewer/index.html`** (new): a self-contained view
+  written beside a run. Positions are computed once by plane and cluster; a WebGL renderer draws
+  nodes and links; a cluster opens into its members when there is room on screen and it is under
+  the pointer or selected; a selection shows its twelve strongest connections as bands; the card
+  lists what uses a node and what it uses. Nothing is fetched from the network.
+- `--structure` puts code on the layers a target declares for it; without it, on its top folder.
+- Measured on a 21,328-node, 56,221-link graph at 2560x1271 with software rendering: first full
+  draw 0.2 to 0.5 s; 1.9 ms a frame mean and 2.9 ms worst over 40 moving frames; 29 ms for the
+  frame that shows all 718 clusters. On a real GPU the same whole-view frame took 23.7 ms.
+- Built in four looked-at passes. Rejected on the way: node-level links from a selected cluster
+  to everything it touches (a flood), every connection of a hub drawn at once (a starburst),
+  neighbouring discs at full strength when zoomed in (slabs), and twelve cycling colours that
+  meant nothing (colour is now the plane).
+- Not done: labels crowd the centre of an open cluster, where its busiest members sit. Zoomed in
+  with the pointer elsewhere, the screen is quiet discs until one is pointed at. No typed
+  symbols, no editing, and planes are flat: each carries a depth index that nothing uses yet.
+  The moving-frame figures come from software rendering in a test browser, not the owner's GPU.
+
 ## 3.1.1 (2026-10-06)
 
 graphify's viewer is taken back out. 3.1.0 wrote its `graph.html` beside our documents; the owner

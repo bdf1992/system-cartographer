@@ -318,10 +318,9 @@ python scripts/graph_export.py --scan-dir "$RUN/scan" --code-dir "$RUN/code" --o
 communities) against graphify's own viewer: its viewer showed the whole slice in a
 1600x1000 window with every community in its own colour and links that could be followed;
 the Schematically document of the same slice needed 3994x3795 and its 158 wires merged
-into bundles. Until Schematically has a node-level view that fits a graph to the window,
-keep the Schematically documents at the height of units (the overviews), where they do
-read, and use `graph.json` and the report for node-level questions. graphify's viewer is
-not shipped: the owner wants that capacity in Schematically, not borrowed.
+into bundles. So keep the Schematically documents at the height of units (the overviews),
+where they do read, and use the view (`graph_view.py`, above) for node-level questions.
+graphify's viewer is not shipped: the owner wants that capacity to be ours, not borrowed.
 
 Nothing is written into the target; graphify's cache goes under `--out-dir`. It needs
 `graphify` importable (`pip install graphifyy`, or the schematify fork on `PYTHONPATH`);
@@ -366,6 +365,44 @@ Launch each analyst and validator as its own agent with the brief, the packet pa
 actor name; the ledger takes one command at a time, so they can run together. Then
 `graph_export.py --audit "$RUN/audit.json"` puts each unit's claims and verdicts on the
 map and in the report. Give the strongest model to the validator, not the analyst.
+
+## The view
+
+`scripts/graph_view.py` writes the node-level view: a folder with `index.html` and
+`data.js` that opens from disk in a browser. No server, nothing fetched from the network.
+
+```bash
+python scripts/graph_view.py --graph "$RUN/graph/graph.json" --out-dir "$RUN/view" [--structure <declaration>]
+```
+
+Positions are computed once, here, so opening the view does no layout work. Every node
+is on a **plane**, a domain: actors, each asset kind, names from outside, and for code
+either its top folder or, with `--structure`, the layer the target declares for it (a
+JSON file with `layers: [{name}]` and `registrations: [{selector, layer}]`). Every node
+is in a **cluster**: its code community, or its plane's own.
+
+There is one rule for detail: a cluster shows its members when there is room to read
+them on screen and it is of interest, meaning under the pointer or selected. Everything
+else is one disc with a count. What is drawn follows the screen, not the size of the
+graph, which is why it stays fast.
+
+- Inside an open cluster every link is drawn, coloured by relation, faint when inferred.
+  Between clusters there is one line per pair. A selection shows its twelve strongest
+  connections as bands, wider for more links, to discs that stay bright and named while
+  the rest go quiet.
+- Colour is the plane. A cluster with claims on it wears a ring and says so in its name.
+- Click a cluster or a node, or search for one. The card lists what uses a node and what
+  it uses, which are the answers to "what breaks if this changes" and "what does this
+  need". Wheel zooms, drag pans, `F` fits, `/` searches, `Esc` clears.
+
+Measured on a 21,328-node, 56,221-link graph at 2560x1271: first full draw 0.2 to 0.5
+seconds after opening; 2 to 3 ms a frame while moving, on software rendering; 29 ms for
+the one frame that shows all 718 clusters. It was looked at in four passes before this
+was written, and the first two were rejected: one drew every link of a selected cluster
+and flooded the screen, the next drew every connection of a hub as a starburst.
+
+It is a view, not Schematically: no typed symbols, no editing, planes drawn flat. It
+carries a depth index per plane and nothing uses it yet.
 
 ## Graph and schematic
 

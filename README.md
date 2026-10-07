@@ -54,6 +54,11 @@ python scripts/analysis_packets.py --graph run/graph/graph.json --run run
 
 The code pass needs `graphify` importable (`pip install graphifyy`); `ruff` is optional.
 
+`scripts/graph_view.py --graph run/graph/graph.json --out-dir run/view` then writes a view of
+every node that opens from disk: clusters as discs on planes, each opening into its members when
+there is room and it is under the pointer or selected, with search and a card that lists what
+uses a thing and what it uses. On a 21,328-node graph it draws in under half a second.
+
 ## The audit
 
 Every claim the run makes about the target, whether the builder said it or the scan supports
