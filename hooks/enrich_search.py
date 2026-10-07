@@ -31,9 +31,12 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
 
 MAX_SUBJECTS = 3
-MAX_CHARS = 1500
+MAX_CHARS = 2000
 MAX_LINE = 220
 MAX_NAMED = 4
+MIN_SENTENCE = 40
+MAX_SEVERAL = 6          # more definitions than this is a common word, and is not listed
+MAX_PATHS = 60             # returned files looked up; a search returning more is not about any of them
 MAX_SOURCE = 400_000      # bytes; a larger file is not parsed at hook time
 _PATH_IN_OUTPUT = re.compile(r"^([A-Za-z]:)?[^\s:*?\"<>|]+\.[A-Za-z0-9]{1,6}", re.MULTILINE)
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{2,60}$")
@@ -69,6 +72,30 @@ def load_notes(index_path):
     return {key.replace("\\", "/").lower(): value for key, value in notes.items()} if isinstance(notes, dict) else {}
 
 
+def note_for(notes, file):
+    """The note for a file: its own entry, else the first entry whose key is a pattern it matches
+    (wskernel/commands/*), so a folder can be described once."""
+    import fnmatch
+    key = file.lower()
+    if key in notes:
+        return notes[key]
+    return next((value for pattern, value in notes.items() if "*" in pattern and fnmatch.fnmatch(key, pattern)), None)
+
+
+def own_uses(root, row):
+    """How many more times a name is written in its own file, counted in the file as it is now.
+    The map's links leave these out or miss them; a function called only by its neighbours is in use."""
+    full = os.path.join(root or "", row["file"])
+    name = row["label"].rstrip("()").lstrip(".").split(".")[-1]
+    if row["kind"] == "file" or not name or not os.path.isfile(full) or os.path.getsize(full) > MAX_SOURCE:
+        return 0
+    try:
+        with open(full, encoding="utf-8", errors="replace") as handle:
+            return max(0, len(re.findall(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", handle.read())) - 1)
+    except OSError:
+        return 0
+
+
 def known(note):
     """A note as lines: what the file is for, then its metadata, then where to read more."""
     if not isinstance(note, dict):
@@ -81,13 +108,26 @@ def known(note):
     return lines
 
 
+def searched_name(part):
+    r"""The name a grep pattern is plainly after, or None: `^def guard`, `guard\s*\(` and
+    `write_record\(.*overwrite` are all after one name; `class \w+Refusal` is after none."""
+    clean = part.strip().strip("()").lstrip("^").strip()
+    for lead in ("\\b", "async def ", "def ", "class "):
+        clean = clean.removeprefix(lead)
+    match = re.match(r"[A-Za-z_][A-Za-z0-9_.]{2,60}", clean)
+    if not match:
+        return None
+    rest = clean[match.end():]
+    return match.group(0).rstrip(".") if not rest or rest.startswith(("\\(", "(", "\\s", "\\b", ":", "\\.")) else None
+
+
 def subjects(payload):
     """What the search was plainly about: the names it looked for, and the files it returned."""
     tool, given, response = payload.get("tool_name"), payload.get("tool_input") or {}, payload.get("tool_response")
     names, paths = [], []
     for part in (given.get("pattern") or "").split("|") if tool == "Grep" else []:
-        name = part.strip().strip("()").strip("\\b").replace("\\(", "").replace("def ", "").replace("class ", "").strip()
-        if _IDENTIFIER.match(name) and name not in names:
+        name = searched_name(part)
+        if name and name not in names:
             names.append(name)
     if tool == "Read" and given.get("file_path"):
         paths.append(given["file_path"])
@@ -101,61 +141,89 @@ def subjects(payload):
     return names, paths
 
 
-def file_node(index, lowered, subject):
-    """The map's node for a path, whatever its case or slashes, and wherever a copy of the tree sits:
-    a file in a worktree is the same file as far as the map knows. At least two path parts must match."""
-    parts = subject.replace("\\", "/").lower().strip("/").split("/")
-    for k in range(len(parts) - 1 if len(parts) > 1 else 1):
+def same_start(a, b):
+    """Two files that begin alike: a copy of the mapped file in another checkout, not another project's."""
+    try:
+        with open(a, "rb") as one, open(b, "rb") as two:
+            return one.read(160) == two.read(160)
+    except OSError:
+        return False
+
+
+def file_node(index, lowered, subject, cwd):
+    """The map's node for a path, whatever its case or slashes. A path outside the mapped tree, or
+    under a folder the map does not hold, is only the mapped file when it is a copy of it (a
+    worktree): the path must end the same over two parts and the two files must begin alike."""
+    nodes, root = index["nodes"], (index.get("root") or "").replace("\\", "/").rstrip("/")
+    given = subject.replace("\\", "/")
+    parts = given.lower().strip("/").split("/")
+    inside = root and given.lower().startswith(root.lower() + "/")
+    exact = lowered.get(given.lower()[len(root) + 1:] if inside else "/".join(parts))
+    if exact:
+        return next((i for i in index["files"][exact] if nodes[i]["kind"] == "file"), None)
+    full = given if os.path.isabs(subject) else os.path.join(cwd or root, subject)
+    for k in range(1, len(parts) - 1):
         real = lowered.get("/".join(parts[k:]))
-        if real:
-            return next((i for i in index["files"][real] if index["nodes"][i]["kind"] == "file"), None)
+        if real and same_start(full, os.path.join(root, real)):
+            return next((i for i in index["files"][real] if nodes[i]["kind"] == "file"), None)
     return None
 
 
-def name_node(index, name, returned):
-    """The definition a searched name means. A name defined once is that definition. A name defined
-    in several files is only the one in a file the search returned; otherwise it is said to be
-    several, since guessing would put another function's facts in front of the agent."""
+def name_nodes(index, name, returned):
+    """The definitions a searched name means. A name defined once is that definition. A name
+    defined in several places is only those in files the search returned, each shown; otherwise
+    nothing is guessed, since another function's facts would be put in front of the agent."""
     nodes = index["nodes"]
     key = name.lower().rstrip("()").lstrip(".")
-    found = index["names"].get(key) or index["names"].get(key.split(".")[-1]) or []
+    found = index["names"].get(key) or []
+    dotted = not found and "." in key
+    if dotted:                                    # Refusal.render: the last part, but only in a returned file
+        found = index["names"].get(key.split(".")[-1]) or []
     found = [i for i in found if nodes[i]["kind"] != "file"]
-    here = [i for i in found if nodes[i]["file"] in returned]
-    if here or len(found) == 1:
-        return max(here or found, key=lambda i: len(index["used_by"][i])), None
-    if not found:
-        return None, None
+    here = sorted((i for i in found if nodes[i]["file"] in returned), key=lambda i: (-len(index["used_by"][i]), i))
+    if here or (len(found) == 1 and not dotted):
+        return (here or found)[:MAX_SUBJECTS], None
+    if not found or dotted or len(found) > MAX_SEVERAL:
+        return [], None                           # a common word: saying "110 definitions" tells nobody anything
     files = sorted({nodes[i]["file"] for i in found if nodes[i]["file"]})
-    return None, (f"- {name}: {len(found)} definitions in the map, none in a file this search returned "
-                  f"({', '.join(files[:MAX_NAMED])}{' ...' if len(files) > MAX_NAMED else ''})")
+    return [], (f"- {name}: {len(found)} definitions in the map, none in a file this search returned "
+                f"({', '.join(files[:MAX_NAMED])}{' ...' if len(files) > MAX_NAMED else ''})")
+
+
+def clip(text):
+    return text if len(text) <= MAX_LINE else text[:MAX_LINE - 3].rstrip() + "..."
 
 
 def from_source(root, row):
     """What the code says about itself, read from the file as it is now: the first sentence of the
-    docstring, and for a function its signature. A file that will not parse says nothing."""
+    docstring, for a function its signature, and for a method its class. A file that will not
+    parse says nothing."""
     import ast
     full = os.path.join(root or "", row["file"])
     if not row["file"].endswith(".py") or not os.path.isfile(full) or os.path.getsize(full) > MAX_SOURCE:
-        return None, None
+        return None, None, None
     try:
         with open(full, encoding="utf-8", errors="replace") as handle:
             tree = ast.parse(handle.read())
     except (OSError, SyntaxError, ValueError):
-        return None, None
-    node, signature = tree, None
+        return None, None, None
+    node, signature, owner = tree, None, None
     if row["kind"] != "file":
         name = row["label"].rstrip("()").lstrip(".").split(".")[-1]
         line = int("".join(ch for ch in str(row["line"] or "").split("-")[0] if ch.isdigit()) or 0)
-        same = [n for n in ast.walk(tree)
-                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.name == name]
+        kinds = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+        same = [(n, parent) for parent in ast.walk(tree) for n in ast.iter_child_nodes(parent)
+                if isinstance(n, kinds) and n.name == name]
         if not same:
-            return None, None
-        node = min(same, key=lambda n: abs(n.lineno - line))    # the map's line may have drifted
+            return None, None, None
+        node, parent = min(same, key=lambda pair: abs(pair[0].lineno - line))    # the map's line may have drifted
+        owner = parent.name if isinstance(parent, ast.ClassDef) else None
         if not isinstance(node, ast.ClassDef):
-            signature = f"{name}({ast.unparse(node.args)})"[:MAX_LINE]
+            signature = clip(f"{name}({ast.unparse(node.args)})")
     doc = (ast.get_docstring(node) or "").strip().split("\n\n")[0].replace("\n", " ")
-    stop = doc.find(". ")
-    return (doc[:stop + 1] if stop > 0 else doc)[:MAX_LINE] or None, signature
+    stop = re.search(r"(?<!e\.g)(?<!i\.e)(?<!etc)(?<!vs)\.\s", doc)
+    # A first sentence too short to say anything ("(allowed, reason).") is followed by the rest.
+    return clip(doc[:stop.start() + 1] if stop and stop.start() >= MIN_SENTENCE else doc) or None, signature, owner
 
 
 def by_file(index, ids, own):
@@ -175,37 +243,65 @@ def named(files):
     return f"{len(files)} file{'' if len(files) == 1 else 's'}: {text}" + (" ..." if len(files) > MAX_NAMED else "")
 
 
-def card(gq, index, i, notes, notes_path):
+def users(index, start):
+    """Who uses a set of nodes, as two sets: links the parse read, and links it guessed from a
+    name alone. A guess is never named as a user: `.json()` is not called by all who import json."""
+    read, guessed = set(), set()
+    for s in start:
+        for j, _relation, inferred in index["used_by"][s]:
+            if j not in start:
+                (guessed if inferred else read).add(j)
+    return read, guessed - read
+
+
+def card(gq, index, i, notes):
     """One thing the search turned up, as a few whole lines: what it is, what the code says it
     does, what is on record about its file, and who uses it by name."""
     row = index["nodes"][i]
     where = f"{row['file']}{' ' + str(row['line']) if row['line'] else ''}" if row["file"] else row["layer"]
-    lines = [f"- {row['label']} ({row['kind']}, {where})"]
-    does, signature = from_source(index.get("root"), row) if row["file"] else (None, None)
+    does, signature, owner = from_source(index.get("root"), row) if row["file"] else (None, None, None)
+    method = row["label"].startswith(".") or bool(owner)
+    label = f"{owner}{row['label'] if row['label'].startswith('.') else '.' + row['label']}" if owner else row["label"]
+    lines = [f"- {label} ({'method' if method else row['kind']}, {where})"]
     if signature:
         lines.append(f"  signature: {signature}")
     if does:
         lines.append(f"  does: {does}")
-    note = notes.get(row["file"].lower())
+    note = note_for(notes, row["file"])
     if isinstance(note, dict) and note.get("about") and note["about"] != does:
         lines.append(f"  {'about' if row['kind'] == 'file' else 'its file'}: {note['about']}")
     lines += known(dict(note, about=None)) if isinstance(note, dict) else []
     parsed = row["layer"] == "code"
     if notes and not note and not does and parsed and row["kind"] == "file" and not row["test"]:
-        # A gap is said with the place to fill it, so it is a job and not a remark.
-        lines.append(f"  no description on record or in the file: add a docstring, or an entry in {notes_path}")
-    start = gq.start_set(index, i)
-    direct = {j for s in start for j, _relation, _inferred in index["used_by"][s] if j not in start}
-    code, tests = by_file(index, direct, row["file"])
+        lines.append("  it has no docstring and nothing is on record about it; if you learn what it is for, add a docstring")
+    read, guessed = users(index, gq.start_set(index, i))
+    code, tests = by_file(index, read, row["file"])
     if code:
         lines.append(f"  referred to from {named(code)}")
+    inside = own_uses(index.get("root"), row)
+    if inside:
+        lines.append(f"  named {inside} more time{'' if inside == 1 else 's'} in its own file")
     if tests:
         lines.append(f"  tests that refer to it directly, {named(tests)}")
-    if not direct:
-        # The parse misses links it cannot resolve, and does not parse every kind of file.
-        lines.append("  no links found in the map" if parsed else "  this kind of file is not parsed for links; search for its name")
-    elif not tests and not row["test"]:
-        lines.append("  no test refers to it directly in the map")
+    elif not row["test"]:
+        # A function no test names is usually tested through its file or its callers. Say what is known.
+        whole = next((j for j in index["files"].get(row["file"], []) if index["nodes"][j]["kind"] == "file"), None)
+        around = users(index, gq.start_set(index, whole))[0] if whole is not None else set()
+        near = by_file(index, around, row["file"])[1]
+        lines.append(f"  no test names it in the map; tests that refer to its file, {named(near)}" if near else
+                     "  the map links no test to it or its file; that is not evidence it is untested")
+    # An absence is only ever "not seen": the parse misses what it cannot resolve.
+    if not parsed and not read:
+        lines.append("  this kind of file is not parsed for links; search for its name to find what reads it")
+    elif not code:
+        unseen = "calls through an object (x.name()) or a module (module.name())" if method or row["kind"] != "file" \
+            else "loads by name (command tables, importlib, test discovery, config)"
+        lines.append(f"  the map links no other file to it. It does not see {unseen}, so this is not evidence "
+                     "it is unused; search for its name")
+    if guessed:
+        files = {index["nodes"][j]["file"] for j in guessed} - {row["file"], ""}
+        if files:
+            lines.append(f"  {len(files)} more file{'' if len(files) == 1 else 's'} matched by name only, unchecked and not listed")
     extra = [f"{row['lint']} lint finding{'' if row['lint'] == 1 else 's'} (ruff)" if row["lint"] else "",
              "claims on its cluster: " + ", ".join(index["claims"].get(row["cluster"], []))
              if index["claims"].get(row["cluster"]) else ""]
@@ -221,33 +317,31 @@ def enrich(payload):
         return None
     index = gq.read_json(path)
     notes = load_notes(path)
-    notes_path = os.environ.get("CARTOGRAPHER_NOTES") or os.path.join(os.path.dirname(path), "notes.json")
     names, paths = subjects(payload)
-    lowered = {key.lower(): key for key in index["files"]}
-    file_ids = [i for i in dict.fromkeys(file_node(index, lowered, item) for item in paths) if i is not None]
-    returned = {index["nodes"][i]["file"] for i in file_ids}
+    nodes, lowered = index["nodes"], {key.lower(): key for key in index["files"]}
+    file_ids = [i for i in dict.fromkeys(file_node(index, lowered, item, payload.get("cwd")) for item in paths[:MAX_PATHS])
+                if i is not None]
+    returned = {nodes[i]["file"] for i in file_ids}
     blocks = []
     for name in names:
-        i, several = name_node(index, name, returned)
-        blocks.append((i, [several] if several else None))
-    blocks += [(i, None) for i in file_ids]
+        ids, several = name_nodes(index, name, returned)
+        blocks += [(i, None) for i in ids] + ([(None, [several])] if several else [])
+    shown = {nodes[i]["file"] for i, _said in blocks if i is not None}
+    # A function shown stands for its file. Of many files, the most used come first, tests last.
+    rest = [i for i in file_ids if nodes[i]["file"] not in shown]
+    blocks += [(i, None) for i in sorted(rest, key=lambda i: (nodes[i]["test"], -len(index["used_by"][i])))]
     head = "From the system map (graph_query.py impact <name> for everything a change reaches):"
-    lines, files, count = [head], set(), 0
+    lines, count = [head], 0
     for i, said in blocks:
-        if i is None and not said:
-            continue
-        # One card per file: a function already shown stands for the file it is in.
-        if i is not None and index["nodes"][i]["file"] in files:
-            continue
-        block = said or card(gq, index, i, notes, notes_path)
+        block = said or card(gq, index, i, notes)
         if len("\n".join(lines + block)) > MAX_CHARS:
             break                                   # whole cards only; a line is never cut
-        if i is not None:
-            files.add(index["nodes"][i]["file"])
         lines += block
         count += 1
         if count == MAX_SUBJECTS:
             break
+    if count and len(file_ids) > MAX_SUBJECTS:
+        lines.append(f"({len(file_ids)} of the files returned are in the map; the most used are shown)")
     return "\n".join(lines) if count else None
 
 
