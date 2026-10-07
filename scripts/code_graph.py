@@ -89,6 +89,7 @@ def parse_code(root, files, out_dir):
     graph = build_from_json(extraction, directed=True, root=Path(root))
     communities = cluster(graph)
     community_of = {node: cid for cid, members in communities.items() for node in members}
+    viewer = write_viewer(graph, communities, out_dir)
     nodes = []
     for node_id, data in graph.nodes(data=True):
         nodes.append({"id": node_id, **data, "community": community_of.get(node_id)})
@@ -97,8 +98,37 @@ def parse_code(root, files, out_dir):
         source, target, data = edge[0], edge[1], dict(edge[2])
         # build_from_json keeps the true direction of an edge it had to store reversed.
         links.append({**data, "source": data.pop("_src", source), "target": data.pop("_tgt", target)})
-    return {"directed": True, "multigraph": False, "graph": {"files_parsed": len(paths)},
+    return {"directed": True, "multigraph": False, "graph": {"files_parsed": len(paths), "viewer": viewer},
             "nodes": nodes, "links": links}
+
+
+def community_names(graph, communities):
+    """A name for each community without asking a model: the folder most of it sits in,
+    and its most connected definition."""
+    degree = dict(graph.degree())
+    names = {}
+    for cid, members in communities.items():
+        folders = {}
+        for member in members:
+            folder = os.path.dirname(str(graph.nodes[member].get("source_file") or "").replace("\\", "/")) or "."
+            folders[folder] = folders.get(folder, 0) + 1
+        folder = max(sorted(folders), key=lambda f: folders[f])
+        top = max(sorted(members), key=lambda m: degree.get(m, 0))
+        names[cid] = f"{folder}: {graph.nodes[top].get('label') or top} ({len(members)})"
+    return names
+
+
+def write_viewer(graph, communities, out_dir):
+    """graphify's own interactive viewer over the parsed code: colour by community, size by
+    links, search, a details panel with neighbours, a filter per community. Above
+    graphify's node limit it draws one node per community instead of refusing."""
+    from graphify.exporters.html import _viz_node_limit, to_html
+    path = os.path.join(out_dir, "graph.html")
+    limit = _viz_node_limit()
+    written = to_html(graph, communities, path, community_labels=community_names(graph, communities),
+                      node_limit=limit)
+    return {"path": path if written else None, "node_limit": limit,
+            "aggregated_to_communities": graph.number_of_nodes() > limit}
 
 
 def start_line(node):
@@ -216,7 +246,8 @@ def main():
         relations[link.get("relation")] = relations.get(link.get("relation"), 0) + 1
         basis[link.get("confidence")] = basis.get(link.get("confidence"), 0) + 1
     json.dump({
-        "code_graph": out, "files_parsed": code["graph"]["files_parsed"], "parse_seconds": parse_seconds,
+        "code_graph": out, "viewer": code["graph"]["viewer"],
+        "files_parsed": code["graph"]["files_parsed"], "parse_seconds": parse_seconds,
         "nodes": len(code["nodes"]), "links": len(code["links"]),
         "communities": len({n["community"] for n in code["nodes"] if n["community"] is not None}),
         "relations": dict(sorted(relations.items(), key=lambda item: -item[1])), "basis": basis,
