@@ -125,14 +125,16 @@ class RecordLinks(unittest.TestCase):
     def test_a_declared_id_inside_a_longer_string_is_a_mention(self):
         # t-beta is already a refers_to from deps[]; one link a pair, and the exact one stands.
         self.assertEqual(self.link("tasks/t-alpha.json", "tasks/t-beta.json")[0], "refers_to")
-        graph = build({**FILES, "tasks/t-delta.json": {"record_type": "Task", "id": "t-delta", "why": "after t-beta."}})
-        row = next(l for l in graph["links"] if l["source"] == "tasks/t-delta.json")
-        self.assertEqual((row["target"], row["relation"], row["field"], row["confidence"]),
-                         ("tasks/t-beta.json", "mentions", "why", "INFERRED"))
+        # `kernel` is a declared id that is a plain word and `notes` only a file name: prose holding them mentions neither
+        graph = build({**FILES, "tasks/t-delta.json": {"record_type": "Task", "id": "t-delta",
+                                                       "why": "after t-beta. See the kernel notes."}})
+        rows = [l for l in graph["links"] if l["source"] == "tasks/t-delta.json"]
+        self.assertEqual([(l["target"], l["relation"], l["field"], l["confidence"]) for l in rows],
+                         [("tasks/t-beta.json", "mentions", "why", "INFERRED")])
 
     def test_a_shared_name_is_followed_only_where_the_field_settles_which(self):
         self.assertEqual(self.graph["graph"]["records"]["ambiguous_ids"], 2)    # dupe, shared-name
-        self.assertEqual(self.link("tasks/t-gamma.json", "missions/shared-name.json"), ("refers_to", "mission", "EXTRACTED"))
+        self.assertEqual(self.link("tasks/t-gamma.json", "missions/shared-name.json"), ("refers_to", "mission", "INFERRED"))
         self.assertIsNone(self.link("tasks/t-alpha.json", "missions/shared-name.json"))    # `lane` points at nothing known
         self.assertIsNone(self.link("tasks/t-alpha.json", "tasks/shared-name.json"))
         # `pair` usually points at a Pair, and both records named dupe are Pairs: still unsettled

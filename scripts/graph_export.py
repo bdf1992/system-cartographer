@@ -429,7 +429,7 @@ def record_layer(nodes, links, graphs, asset_kinds):
     object's key counts only as a declared id. A declared id found inside a longer string
     is a `mentions` link, INFERRED. Where two
     records share a name, a reference is followed only when one of them has the type that
-    field usually points at. Returns the counts for the report."""
+    field usually points at, and is then INFERRED. Returns the counts for the report."""
     root = next((g.get("root") or g.get("target") for g in graphs.values() if g.get("root") or g.get("target")), "")
     records = sorted(rel for rel, node in nodes.items() if node["kind"] == "file"
                      and any(asset_kinds.get(concern) == RECORDS for concern in node["concerns"]))
@@ -467,8 +467,8 @@ def record_layer(nodes, links, graphs, asset_kinds):
 
     def owner_of(value, field):
         held = owners.get(value) or {}
-        if len(held) > 1:
-            held = {rel: b for rel, b in held.items() if nodes[rel]["record_type"] == usual.get(field)}
+        if len(held) > 1:    # settled by what the field usually points at: a judgement, so never EXTRACTED
+            held = {rel: "INFERRED" for rel in held if nodes[rel]["record_type"] == usual.get(field)}
         return next(iter(held.items())) if len(held) == 1 else (None, None)
 
     touched = set()
