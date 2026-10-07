@@ -2,8 +2,11 @@
 
     python -m unittest discover -s tests
 """
+import json
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
@@ -60,6 +63,61 @@ class Planes(View):
         view = self.see()
         for row in view["nodes"]:
             self.assertEqual(self.planes[self.where[row[3]]["plane"]], row[5].split("/")[0], row[3])
+
+
+class DeclaredLayers(unittest.TestCase):
+    CORE = [{"selector": "kernel/store.py", "layer": "core"}]
+
+    def see(self, registrations, extra=()):
+        view = gv.build_view(graph(extra), ["core"], registrations)
+        self.planes = [p["name"] for p in view["planes"]]
+        self.where = {row[5]: self.planes[c["plane"]] for c in view["clusters"]
+                      for row in view["nodes"][c["start"]: c["start"] + c["count"]]}
+        return view
+
+    def test_code_a_declaration_covers_but_does_not_place_says_so(self):
+        view = self.see(self.CORE)
+        self.assertEqual(self.where["kernel/store.py"], "core")
+        for rel in ("kernel/ids.py", "kernel/ops/alpha.py"):
+            self.assertEqual(self.where[rel], "kernel (no layer)", rel)
+        # the made-up graph has definitions and no file nodes: the files are named all the same
+        self.assertEqual(view["unplaced"], {"kernel (no layer)": ["kernel/ids.py", "kernel/ops/alpha.py", "kernel/ops/beta.py",
+                                                                  "kernel/ops/gamma.py"]})
+
+    def test_a_folder_the_declaration_does_not_speak_for_keeps_its_name(self):
+        self.see(self.CORE)
+        self.assertEqual((self.where["app/lone.py"], self.where["tests/test_store.py"]), ("app", "tests"))
+
+    def test_what_was_left_out_comes_straight_after_the_layers(self):
+        self.see(self.CORE)
+        self.assertEqual(self.planes, ["core", "kernel (no layer)", "app", "tests"])
+
+    def test_a_file_left_out_is_named_once_however_many_nodes_it_has(self):
+        files = [code("kernel/ids.py", "kernel/ids.py", 1, kind="file"), code("kernel/store.py", "kernel/store.py", 1, kind="file"),
+                 code("app/lone.py", "app/lone.py", 3, kind="file")]
+        self.assertEqual(self.see(self.CORE, files)["unplaced"]["kernel (no layer)"][0:2], ["kernel/ids.py", "kernel/ops/alpha.py"])
+        self.assertEqual(len(self.see(self.CORE, files)["unplaced"]["kernel (no layer)"]), 4)
+
+    def test_the_run_s_summary_names_them(self):
+        work = tempfile.mkdtemp(prefix="carto-view-")
+        with open(os.path.join(work, "graph.json"), "w", encoding="utf-8") as handle:
+            json.dump(graph(), handle)
+        with open(os.path.join(work, "structure.json"), "w", encoding="utf-8") as handle:
+            json.dump({"layers": [{"name": "core"}], "registrations": self.CORE}, handle)
+        script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "graph_view.py")
+        done = subprocess.run([sys.executable, script, "--graph", os.path.join(work, "graph.json"), "--out-dir",
+                               os.path.join(work, "view"), "--structure", os.path.join(work, "structure.json")],
+                              capture_output=True, text=True, check=True)
+        self.assertEqual(json.loads(done.stdout)["files_with_no_declared_layer"]["kernel (no layer)"][0], "kernel/ids.py")
+
+    def test_with_no_declaration_nothing_is_marked(self):
+        view = self.see([])
+        self.assertEqual(self.planes, ["app", "kernel", "tests"])
+        self.assertEqual(view["unplaced"], {})
+
+    def test_a_declaration_that_places_everything_marks_nothing(self):
+        self.see([{"selector": "kernel/*", "layer": "core"}])
+        self.assertEqual(self.planes, ["core", "app", "tests"])
 
 
 class SmallParts(View):

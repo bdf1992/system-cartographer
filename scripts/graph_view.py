@@ -11,7 +11,9 @@ What is computed here, once, so that opening the view does no layout work:
 
   plane     a domain. Code goes on the layer its target declares for it when --structure
             names a declaration (a JSON file with `layers: [{name}]` and `registrations:
-            [{selector, layer}]`, selectors being path globs); otherwise on its top folder.
+            [{selector, layer}]`, selectors being path globs); otherwise on its top folder,
+            marked "(no layer)" where the declaration places other code of that folder;
+            the run's summary names those files.
             Actors, each asset kind, names from outside and the boundary get a plane each.
   cluster   the unit that opens and closes: the part of a code community that is on one
             plane, the records of one type, or one plane's worth of anything that has
@@ -61,6 +63,7 @@ KINDS = ["calls", "imports", "uses", "holds", "other"]
 KIND = {"calls": 0, "indirect_call": 0, "imports": 1, "imports_from": 1, "inherits": 1, "re_exports": 1,
         "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2, "names": 2, "tests": 2,
         "contains": 3, "method": 3, "defines": 3, "binds": 3}
+NO_LAYER = " (no layer)"    # short: the viewer cuts a plane's label to its width
 FIRST_PLANES = ["actors"]
 # Code that is not the target's own running code has a plane of its own, after the rest of the code.
 ROLE_PLANES = {ge.TEST: "tests", ge.NOT_OWN: "code not written here"}
@@ -83,11 +86,23 @@ def declared_layer(rel, registrations):
     return None
 
 
-def plane_of(node, registrations):
+def covered_folders(nodes, registrations):
+    """The top folders a structure declaration speaks for: those with code it puts on a layer.
+    A test or a file not written here is on its own plane whatever the declaration says, so it
+    does not make its folder one."""
+    return {n["source_file"].split("/")[0] for n in nodes
+            if n["layer"] == "code" and n.get("role") not in ROLE_PLANES and declared_layer(n["source_file"], registrations)}
+
+
+def plane_of(node, registrations, covered=()):
+    """The plane a node is on. Code goes on its declared layer. Code no registration places
+    goes on its top folder, and where the declaration places other code of that folder the
+    plane says so: the declaration covers the folder and left this out."""
     if node["layer"] == "code":
         if node.get("role") in ROLE_PLANES:
             return ROLE_PLANES[node["role"]]
-        return declared_layer(node["source_file"], registrations) or node["source_file"].split("/")[0]
+        folder = node["source_file"].split("/")[0]
+        return declared_layer(node["source_file"], registrations) or (folder + NO_LAYER if folder in covered else folder)
     if node["layer"] == "actors":
         return "actors"
     if node["layer"] == "outside":
@@ -220,7 +235,8 @@ def build_view(graph, layers, registrations):
     nodes, links = graph["nodes"], graph["links"]
     degree = ge.degrees(graph)
     claims = graph["graph"].get("claims") or {}
-    plane = {n["id"]: plane_of(n, registrations) for n in nodes}
+    covered = covered_folders(nodes, registrations)
+    plane = {n["id"]: plane_of(n, registrations, covered) for n in nodes}
     # On its plane, a record type too small to be a cluster of its own is shown with the folder
     # its records sit in, and a folder's worth that is still too small with the other leftovers.
     group = {n["id"]: f"{plane[n['id']]}: {n['record_type']}" for n in nodes if n.get("record_type")}
@@ -257,7 +273,9 @@ def build_view(graph, layers, registrations):
     # then other code, then assets, then what is outside.
     present = set(cluster_plane.values())
     code_planes = {plane[n["id"]] for n in nodes if n["layer"] == "code"} - set(layers)
-    code_planes = sorted(code_planes - set(ROLE_PLANES.values())) + [p for p in ROLE_PLANES.values() if p in code_planes]
+    # what the declaration left out comes straight after its layers, then the folders it does not speak for
+    code_planes = (sorted(code_planes - set(ROLE_PLANES.values()), key=lambda p: (not p.endswith(NO_LAYER), p))
+                   + [p for p in ROLE_PLANES.values() if p in code_planes])
     asset_planes = sorted(present - set(FIRST_PLANES) - set(LAST_PLANES) - set(layers) - set(code_planes))
     order = [p for p in FIRST_PLANES + list(reversed(layers)) + code_planes + asset_planes + LAST_PLANES if p in present]
 
@@ -317,7 +335,12 @@ def build_view(graph, layers, registrations):
         clusters.append({"id": cid, "name": names[cid], "community": community, "plane": order.index(cluster_plane[cid]),
                          "x": round(cx, 1), "y": round(cy, 1), "r": round(radius[cid], 1), "start": start, "count": len(rows),
                          "claims": shown_claims.get(cid, [])})
+    unplaced = {}    # plane -> the files whose code is on it, whether or not the file itself is a node
+    for n in nodes:
+        if plane[n["id"]].endswith(NO_LAYER) and n.get("source_file"):
+            unplaced.setdefault(plane[n["id"]], set()).add(n["source_file"])
     return {
+        "unplaced": {name: sorted(files) for name, files in sorted(unplaced.items())},
         "planes": [boxes[p] for p in order], "clusters": clusters, "nodes": out_nodes, "kinds": KINDS,
         "edges": [[node_index[l["source"]], node_index[l["target"]], KIND.get(l["relation"], 4),
                    1 if l["confidence"] == "INFERRED" else 0] for l in links],
@@ -342,7 +365,7 @@ def main():
     shutil.copyfile(viewer, os.path.join(args.out_dir, "index.html"))
     json.dump({"view": os.path.join(args.out_dir, "index.html"), "planes": [p["name"] for p in view["planes"]],
                "clusters": len(view["clusters"]), "nodes": len(view["nodes"]), "links": len(view["edges"]),
-               "data_bytes": os.path.getsize(data_path)}, sys.stdout, indent=2)
+               "files_with_no_declared_layer": view["unplaced"], "data_bytes": os.path.getsize(data_path)}, sys.stdout, indent=2)
     sys.stdout.write("\n")
 
 

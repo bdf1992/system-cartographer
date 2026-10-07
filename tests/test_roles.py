@@ -180,6 +180,15 @@ class RolePlanes(unittest.TestCase):
         self.assertEqual((self.where["web/src/panel.tsx"], self.where["web/src/panel.test.tsx"], self.where["tools/build_test.py"]),
                          ("front", "tests", "tests"))
 
+    def test_a_test_in_a_folder_the_declaration_covers_is_still_on_the_tests_plane(self):
+        self.see(["front"], [{"selector": "web/src/panel.tsx", "layer": "front"}])
+        self.assertEqual((self.where["web/src/widget.ts"], self.where["web/src/widget.test.tsx"], self.where["web/types/lib.d.ts"]),
+                         ("web (no layer)", "tests", "code not written here"))
+
+    def test_a_folder_whose_only_placed_file_is_a_test_is_not_covered(self):
+        self.see(["front"], [{"selector": "web/src/panel.test.tsx", "layer": "front"}])
+        self.assertEqual((self.where["web/src/widget.ts"], self.where["web/src/panel.test.tsx"]), ("web", "tests"))
+
     def test_a_join_is_drawn_as_a_use(self):
         view = self.see()
         index = {(row[5], row[4]): i for i, row in enumerate(view["nodes"])}
