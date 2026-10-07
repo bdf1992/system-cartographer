@@ -16,6 +16,9 @@ as a judgement on the codebase. Checked against the source by another route, nei
   named in another file: the parse had missed the link.
 - Search and hook lines say `no dependents found in the map` and `no test file found among
   them`. Neither says a thing is unused or untested.
+- The hook's time was also overstated in 3.3.0 as "about 110 ms". Measured on two more runs of
+  the same six payloads it ranged from 107 to 563 ms a call on a machine doing other work, and
+  once reached 1,620 ms. 110 ms is the best case, not the usual one.
 - The rule this release adds to `SKILL.md`: a measure is not shown as a verdict on a codebase,
   and is not shown at all before it has been checked by a second route.
 
