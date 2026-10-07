@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Graph view</title>
+<style>
+  :root { --bg: #15171a; --glass: rgba(28, 31, 34, .82); --line: #2b3035; --ink: #e9ebe6; --muted: #8b939b; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px ui-sans-serif, system-ui, "Segoe UI", sans-serif; overflow: hidden; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #labels { pointer-events: none; }
+  .glass { position: absolute; background: var(--glass); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(10px); }
+  #find { left: 16px; top: 16px; width: 320px; padding: 8px; }
+  #search { width: 100%; box-sizing: border-box; background: transparent; color: inherit; border: 0; outline: 0; padding: 4px 6px; font: inherit; }
+  #results { max-height: 320px; overflow: auto; }
+  #results div, .nb { padding: 4px 6px; border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #results div:hover, .nb:hover { background: #2a2f34; }
+  #results small, .nb small { color: var(--muted); margin-left: 6px; }
+  #kinds { left: 16px; bottom: 16px; padding: 6px 8px; display: flex; gap: 4px; }
+  #kinds button { all: unset; cursor: pointer; padding: 3px 8px; border-radius: 6px; color: var(--ink); display: flex; align-items: center; gap: 6px; }
+  #kinds button.off { color: var(--muted); }
+  #kinds button.off i { opacity: .25; }
+  #kinds i { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+  #card { right: 16px; top: 16px; width: 300px; max-height: calc(100% - 32px); overflow: auto; padding: 12px 14px; box-sizing: border-box; display: none; }
+  #card b { font-size: 14px; word-break: break-word; }
+  #card .m { color: var(--muted); margin-top: 2px; word-break: break-word; }
+  #card h4 { margin: 12px 0 4px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  #stat { position: absolute; right: 16px; bottom: 12px; color: #5d656d; font: 11px ui-monospace, Consolas, monospace; pointer-events: none; }
+  #tip { position: absolute; pointer-events: none; padding: 4px 8px; display: none; white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="labels"></canvas>
+<div id="find" class="glass"><input id="search" placeholder="Search" autocomplete="off"><div id="results"></div></div>
+<div id="kinds" class="glass"></div>
+<div id="card" class="glass"></div>
+<div id="tip" class="glass"></div>
+<div id="stat"></div>
+<script src="data.js"></script>
+<script>
+"use strict";
+const G = window.GRAPH, N = G.nodes, C = G.clusters, E = G.edges, P = G.planes;
+const glc = document.getElementById("gl"), lc = document.getElementById("labels");
+const gl = glc.getContext("webgl", { antialias: true, preserveDrawingBuffer: true }), ctx = lc.getContext("2d");
+// One hue per plane, so colour means the domain a thing lives in. Hues are spaced by the golden angle.
+function hsl(h, s, l) { const a = s * Math.min(l, 1 - l), f = n => { const k = (n + h * 12) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }; return [f(0), f(8), f(4)]; }
+const PLANE_COLOR = P.map((_, i) => hsl((0.58 + i * 0.381966) % 1, 0.52, 0.62));
+const KIND_COLOR = [[0.96, 0.96, 0.94], [0.45, 0.70, 1.0], [0.78, 0.62, 1.0], [0.55, 0.57, 0.6], [0.6, 0.62, 0.64]];
+const kindOn = [true, true, true, false, false];
+
+// ---- geometry uploaded once ---------------------------------------------------------------------
+const nodeCluster = new Int32Array(N.length);
+C.forEach((c, i) => { for (let k = c.start; k < c.start + c.count; k++) nodeCluster[k] = i; });
+const maxDeg = N.reduce((m, n) => Math.max(m, n[2]), 1);
+const nodeBuf = new Float32Array(N.length * 6);
+N.forEach((n, i) => { const col = PLANE_COLOR[C[nodeCluster[i]].plane], o = i * 6; nodeBuf[o] = n[0]; nodeBuf[o + 1] = n[1]; nodeBuf[o + 2] = 4 + 16 * Math.sqrt(n[2] / maxDeg); nodeBuf[o + 3] = col[0]; nodeBuf[o + 4] = col[1]; nodeBuf[o + 5] = col[2]; });
+const edgesBy = C.map(() => []), edgesOf = new Map();
+E.forEach((e, i) => { edgesBy[nodeCluster[e[0]]].push(i); for (const n of [e[0], e[1]]) (edgesOf.get(n) || edgesOf.set(n, []).get(n)).push(i); });
+const clusterLinks = C.map(() => []);                 // per cluster: [other, count], strongest first
+let maxAgg = 1;
+for (const [a, b, n] of G.clusterEdges) { clusterLinks[a].push([b, n]); clusterLinks[b].push([a, n]); maxAgg = Math.max(maxAgg, n); }
+clusterLinks.forEach(l => l.sort((x, y) => y[1] - x[1]));
+
+function shader(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function program(fs) { const p = gl.createProgram(); gl.attachShader(p, shader(gl.VERTEX_SHADER, VS)); gl.attachShader(p, shader(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); return p; }
+const VS = `attribute vec2 a_pos; attribute float a_size; attribute vec4 a_col; uniform vec3 u_view; uniform vec2 u_res; uniform float u_scale; varying vec4 v_col;
+void main(){ vec2 p=(a_pos-u_view.xy)*u_view.z; gl_Position=vec4(p.x/u_res.x*2.0, -p.y/u_res.y*2.0, 0.0, 1.0); gl_PointSize=max(2.0, a_size*u_scale); v_col=a_col; }`;
+const pPoint = program(`precision mediump float; varying vec4 v_col; uniform float u_alpha; uniform float u_ring;
+void main(){ float d=length(gl_PointCoord-0.5); if(d>0.5) discard; float a=smoothstep(0.5,0.44,d); if(u_ring>0.0) a*=smoothstep(0.5-u_ring-0.03,0.5-u_ring,d); gl_FragColor=vec4(v_col.rgb, v_col.a*u_alpha*a); }`);
+const pLine = program(`precision mediump float; varying vec4 v_col; uniform float u_alpha; void main(){ gl_FragColor=vec4(v_col.rgb, v_col.a*u_alpha); }`);
+const bufNodes = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bufNodes); gl.bufferData(gl.ARRAY_BUFFER, nodeBuf, gl.STATIC_DRAW);
+const bufDyn = gl.createBuffer();
+function use(p, buf, stride, alpha, scale, ring) {
+  gl.useProgram(p); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  const pos = gl.getAttribLocation(p, "a_pos"), size = gl.getAttribLocation(p, "a_size"), col = gl.getAttribLocation(p, "a_col");
+  gl.enableVertexAttribArray(pos); gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, stride, 0);
+  gl.enableVertexAttribArray(size); gl.vertexAttribPointer(size, 1, gl.FLOAT, false, stride, 8);
+  if (stride === 24) { gl.disableVertexAttribArray(col); gl.vertexAttribPointer(col, 3, gl.FLOAT, false, stride, 12); gl.enableVertexAttribArray(col); }
+  else { gl.enableVertexAttribArray(col); gl.vertexAttribPointer(col, 4, gl.FLOAT, false, stride, 12); }
+  gl.uniform3f(gl.getUniformLocation(p, "u_view"), view.x, view.y, view.k); gl.uniform2f(gl.getUniformLocation(p, "u_res"), W, H);
+  gl.uniform1f(gl.getUniformLocation(p, "u_alpha"), alpha); gl.uniform1f(gl.getUniformLocation(p, "u_scale"), scale);
+  if (p === pPoint) gl.uniform1f(gl.getUniformLocation(p, "u_ring"), ring || 0);
+}
+function dyn(arr) { gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW); }
+
+// ---- view, focus, and the one rule for detail ---------------------------------------------------
+let W = 1, H = 1, DPR = 1, dirty = true;
+const view = { x: 0, y: 0, k: 1 }, goal = { x: 0, y: 0, k: 1, on: false }, mouse = { sx: -1e6, sy: -1e6 };
+let selNode = null, selCluster = null, hoverCluster = null, hoverNode = null, context = new Set(), related = new Set();
+const toScreen = (x, y) => [(x - view.x) * view.k + W / 2, (y - view.y) * view.k + H / 2];
+const toWorld = (sx, sy) => [(sx - W / 2) / view.k + view.x, (sy - H / 2) / view.k + view.y];
+// A cluster shows its members when there is room to read them (its radius on screen) and it is
+// of interest: under the pointer, or part of what is selected and what that links to most.
+const ROOM_PX = 42, NEAR_PX = 380;
+function open(c, i) {
+  const [sx, sy] = toScreen(c.x, c.y), r = c.r * view.k;
+  if (sx < -r || sy < -r || sx > W + r || sy > H + r) return false;
+  if (context.has(i)) return r > 16;
+  return r > ROOM_PX && Math.hypot(sx - mouse.sx, sy - mouse.sy) < NEAR_PX + r;
+}
+function fly(x, y, k) { goal.x = x; goal.y = y; goal.k = Math.max(0.005, Math.min(10, k)); goal.on = true; dirty = true; }
+function fit() {
+  const x0 = Math.min(...P.map(p => p.x)), x1 = Math.max(...P.map(p => p.x + p.w)), y0 = Math.min(...P.map(p => p.y)), y1 = Math.max(...P.map(p => p.y + p.h));
+  fly((x0 + x1) / 2, (y0 + y1) / 2, Math.min(W / (x1 - x0), H / (y1 - y0)) * 0.9);
+}
+
+function draw() {
+  const t0 = performance.now();
+  gl.viewport(0, 0, glc.width, glc.height); gl.clearColor(0.082, 0.09, 0.102, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  const opened = [], closed = []; C.forEach((c, i) => (open(c, i) ? opened : closed).push(i));
+  const isOpen = new Set(opened), lit = hoverCluster ?? selCluster ?? null, focused = selNode !== null || selCluster !== null;
+
+  // Between clusters there is one line per pair, however many links it stands for. Weak ones stay
+  // hidden until an end is of interest; the lit cluster's own are drawn as bands, wider for more links.
+  const agg = [], bands = [];
+  function band(ax, ay, bx, by, px, r, g, b, al) {
+    const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1, ox = -dy / len * px / 2 / view.k, oy = dx / len * px / 2 / view.k;
+    for (const [x, y] of [[ax + ox, ay + oy], [ax - ox, ay - oy], [bx + ox, by + oy], [bx + ox, by + oy], [ax - ox, ay - oy], [bx - ox, by - oy]]) bands.push(x, y, 0, r, g, b, al);
+  }
+  if (!focused && lit === null) for (const [a, b, n] of G.clusterEdges) {
+    if (n < 6) continue;
+    const w = Math.log(1 + n) / Math.log(1 + maxAgg), al = 0.05 + 0.3 * w * w, ca = C[a], cb = C[b];
+    agg.push(ca.x, ca.y, 0, 0.8, 0.83, 0.86, al, cb.x, cb.y, 0, 0.8, 0.83, 0.86, al);
+  }
+  // What is of interest shows its strongest connections only: a node's links to another cluster
+  // merge into one band from the node, a cluster's into one band from its centre.
+  const from = selNode !== null && hoverCluster === null ? N[selNode] : lit !== null ? [C[lit].x, C[lit].y] : null;
+  const ties = selNode !== null && hoverCluster === null ? nodeTies(selNode) : lit !== null ? clusterLinks[lit].slice(0, TIES) : [];
+  const most = ties.length ? ties[0][1] : 1;
+  for (const [o, n] of ties) { const w = Math.sqrt(n / most); band(from[0], from[1], C[o].x, C[o].y, 1.2 + 6 * w, 0.93, 0.94, 0.92, 0.22 + 0.45 * w); }
+  use(pLine, bufDyn, 28, 1, 1); dyn(agg); gl.drawArrays(gl.LINES, 0, agg.length / 7);
+  dyn(bands); gl.drawArrays(gl.TRIANGLES, 0, bands.length / 7);
+
+  // Inside an open cluster every link is drawn, coloured by relation, faint when inferred.
+  const lines = [], strong = [];
+  const selLinks = selNode !== null ? new Set(edgesOf.get(selNode) || []) : null;
+  for (const ci of opened) for (const ei of edgesBy[ci]) {
+    const e = E[ei]; if (!kindOn[e[2]] || nodeCluster[e[1]] !== ci || (selLinks && selLinks.has(ei))) continue;
+    const a = N[e[0]], b = N[e[1]], col = KIND_COLOR[e[2]], al = (e[3] ? 0.10 : 0.28) * (selLinks ? 0.4 : 1);
+    lines.push(a[0], a[1], 0, col[0], col[1], col[2], al, b[0], b[1], 0, col[0], col[1], col[2], al);
+  }
+  // The selected node's links to nodes that are on show, one by one.
+  if (selLinks) for (const ei of selLinks) {
+    const e = E[ei], other = e[0] === selNode ? e[1] : e[0], s = N[selNode], col = KIND_COLOR[e[2]];
+    if (!isOpen.has(nodeCluster[other])) continue;
+    strong.push(s[0], s[1], 0, col[0], col[1], col[2], 0.9, N[other][0], N[other][1], 0, col[0], col[1], col[2], 0.9);
+  }
+  dyn(lines); gl.drawArrays(gl.LINES, 0, lines.length / 7);
+  dyn(strong); gl.drawArrays(gl.LINES, 0, strong.length / 7);
+
+  // closed clusters: one disc each, as large as the room its members take, in its plane's colour
+  const discs = [], rings = [];
+  for (const ci of closed) {
+    const c = C[ci], col = PLANE_COLOR[c.plane], size = Math.max(4, c.r * 2 * view.k);
+    // A disc that fills the screen says less, not more: it fades as it grows.
+    const al = (ci === lit ? 0.8 : !focused ? 0.42 : related.has(ci) ? 0.5 : 0.1) * Math.max(0.28, Math.min(1, 46 / (c.r * view.k)));
+    discs.push(c.x, c.y, size, col[0], col[1], col[2], al);
+    if (c.claims.length) rings.push(c.x, c.y, size + 10, 0.98, 0.42, 0.38, 0.95);
+  }
+  use(pPoint, bufDyn, 28, 1, DPR); dyn(discs); gl.drawArrays(gl.POINTS, 0, discs.length / 7);
+  for (const ci of opened) { const c = C[ci], col = PLANE_COLOR[c.plane]; rings.push(c.x, c.y, c.r * 2.1 * view.k, col[0], col[1], col[2], c.claims.length ? 0 : 0.35); if (c.claims.length) rings.push(c.x, c.y, c.r * 2.1 * view.k, 0.98, 0.42, 0.38, 0.9); }
+  use(pPoint, bufDyn, 28, 1, DPR, 0.012); dyn(rings); gl.drawArrays(gl.POINTS, 0, rings.length / 7);
+
+  // open clusters: their members, straight from the buffer uploaded at start
+  use(pPoint, bufNodes, 24, selNode !== null ? 0.5 : 0.95, DPR * Math.max(0.55, Math.min(2.4, view.k * 1.5)));
+  gl.vertexAttrib4f(gl.getAttribLocation(pPoint, "a_col"), 1, 1, 1, 1);
+  let shown = 0; for (const ci of opened) { gl.drawArrays(gl.POINTS, C[ci].start, C[ci].count); shown += C[ci].count; }
+  if (selNode !== null) {                                // the selection and its neighbours at full strength
+    const hi = []; for (const j of [selNode, ...neighbours(selNode)]) if (isOpen.has(nodeCluster[j])) { const o = j * 6; hi.push(nodeBuf[o], nodeBuf[o + 1], nodeBuf[o + 2] * (j === selNode ? 1.5 : 1.1), nodeBuf[o + 3], nodeBuf[o + 4], nodeBuf[o + 5], 1); }
+    use(pPoint, bufDyn, 28, 1, DPR * Math.max(0.55, Math.min(2.4, view.k * 1.5))); dyn(hi); gl.drawArrays(gl.POINTS, 0, hi.length / 7);
+  }
+  drawLabels(opened, closed, lit);
+  const ms = performance.now() - t0;
+  window.__frame = { ms: +ms.toFixed(2), nodes: shown, open: opened.length, closed: closed.length, links: ((lines.length + agg.length + strong.length) / 14 + bands.length / 42) | 0 };
+  document.getElementById("stat").textContent = `${N.length.toLocaleString()} nodes  ${E.length.toLocaleString()} links  ${ms.toFixed(1)} ms`;
+}
+const nbCache = new Map();
+function neighbours(i) { if (!nbCache.has(i)) nbCache.set(i, [...new Set((edgesOf.get(i) || []).map(ei => E[ei][0] === i ? E[ei][1] : E[ei][0]))]); return nbCache.get(i); }
+
+function drawLabels(opened, closed, lit) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H); ctx.textBaseline = "middle";
+  for (const [i, p] of P.entries()) {                    // planes: a quiet floor and a name
+    const [x, y] = toScreen(p.x, p.y), w = p.w * view.k, h = p.h * view.k, col = PLANE_COLOR[i].map(v => v * 255 | 0);
+    ctx.fillStyle = `rgba(${col},0.035)`; ctx.strokeStyle = `rgba(${col},0.18)`; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, Math.min(14, w / 6)); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = `rgba(${col},0.9)`; ctx.font = "600 12px ui-sans-serif, system-ui, sans-serif"; ctx.textAlign = "left";
+    if (h > 14) {                                          // above the plane, cut to the room the plane gives it
+      let name = p.name; const room = Math.max(w + 150 * view.k, 28);
+      while (name.length > 3 && ctx.measureText(name).width > room) name = name.slice(0, -2);
+      ctx.fillText(name === p.name ? name : name.trimEnd() + "…", x + 2, y - 9);
+    }
+  }
+  ctx.textAlign = "center"; const placed = [];
+  function put(text, sx, sy, font, color) {
+    ctx.font = font; const w = ctx.measureText(text).width + 8, box = [sx - w / 2, sy - 9, sx + w / 2, sy + 9];
+    if (box[2] < 0 || box[0] > W || box[3] < 0 || box[1] > H) return;
+    for (const b of placed) if (box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]) return;
+    placed.push(box); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(21,23,26,0.92)"; ctx.strokeText(text, sx, sy); ctx.fillStyle = color; ctx.fillText(text, sx, sy);
+  }
+  const node = "12px ui-sans-serif, system-ui, sans-serif", head = "600 12px ui-sans-serif, system-ui, sans-serif";
+  if (selNode !== null) { const n = N[selNode], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 16, head, "#fff"); for (const j of neighbours(selNode).slice(0, 60)) { const m = N[j], [x, y] = toScreen(m[0], m[1]); if (open(C[nodeCluster[j]], nodeCluster[j])) put(m[3], x, y - 13, node, "#e9ebe6"); } }
+  if (lit !== null && lit !== undefined) { const c = C[lit], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy - c.r * view.k - 12, head, "#fff"); }
+  for (const ci of opened) { const c = C[ci], limit = Math.min(c.count, 36); for (let k = c.start; k < c.start + limit; k++) { const n = N[k], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 13, node, selNode !== null ? "#8b939b" : "#d6dad5"); } }
+  const quiet = selNode !== null || selCluster !== null;   // with something selected, only what it ties to keeps a bright name
+  const rank = ci => (related.has(ci) ? 1e7 : 0) + C[ci].count;
+  for (const ci of closed.filter(i => C[i].r * view.k > 11).sort((a, b) => rank(b) - rank(a))) { const c = C[ci], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy, "11px ui-sans-serif, system-ui, sans-serif", !quiet ? "#c3c8cd" : related.has(ci) ? "#eef0ec" : "#565d64"); }
+}
+const clusterText = c => `${c.name.split(": ").pop()} ${c.count}` + (c.claims.length ? `  ${c.claims.length} claims` : "");
+
+// ---- selection ---------------------------------------------------------------------------------------
+const card = document.getElementById("card"), esc = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+// A selection opens only itself. What it links to stays closed and is kept bright, so the eye
+// can follow one band to one disc.
+const TIES = 12;
+function nodeTies(i) {                                  // the clusters a node links to, strongest first
+  const count = new Map(); for (const j of neighbours(i)) { const c = nodeCluster[j]; if (c !== nodeCluster[i]) count.set(c, (count.get(c) || 0) + 1); }
+  return [...count].sort((a, b) => b[1] - a[1]).slice(0, TIES);
+}
+// Bring the selection and the few things it links to most into one view, but never so far out
+// that the selection itself is too small to read.
+function frameWith(ci, others) {
+  const list = [ci, ...others.slice(0, 5)], c = C[ci];
+  const x0 = Math.min(...list.map(i => C[i].x - C[i].r)), x1 = Math.max(...list.map(i => C[i].x + C[i].r));
+  const y0 = Math.min(...list.map(i => C[i].y - C[i].r)), y1 = Math.max(...list.map(i => C[i].y + C[i].r));
+  const least = Math.min(W, H) * 0.19 / c.r, k = Math.max(Math.min((W - 360) / (x1 - x0), H / (y1 - y0)) * 0.82, least);
+  fly(k > least ? (x0 + x1) / 2 : c.x, k > least ? (y0 + y1) / 2 : c.y, k);
+}
+function selectCluster(ci) {
+  selCluster = ci; selNode = null; context = new Set([ci]); related = new Set(clusterLinks[ci].slice(0, TIES).map(l => l[0])); const c = C[ci];
+  card.style.display = "block";
+  card.innerHTML = `<b>${esc(c.name)}</b><div class="m">${c.count} members on ${esc(P[c.plane].name)}</div>` + (c.claims.length ? `<h4>Claims</h4>${c.claims.map(x => `<div>${esc(x)}</div>`).join("")}` : "") +
+    `<h4>Linked most to</h4>` + clusterLinks[ci].slice(0, 12).map(([o, n]) => `<div class="nb" data-c="${o}">${esc(clusterText(C[o]))}<small>${n} links</small></div>`).join("");
+  frameWith(ci, [...related]);
+}
+function selectNode(i) {
+  selNode = i; selCluster = nodeCluster[i]; const n = N[i], nb = neighbours(i), c = C[selCluster];
+  // A link runs from the thing that depends to the thing depended on, so the two directions answer
+  // two questions: what breaks if this changes, and what this needs.
+  const mine = edgesOf.get(i) || [], usedBy = [...new Set(mine.filter(ei => E[ei][1] === i && E[ei][2] !== 3).map(ei => E[ei][0]))], uses = [...new Set(mine.filter(ei => E[ei][0] === i && E[ei][2] !== 3).map(ei => E[ei][1]))];
+  const listOf = (title, list) => list.length ? `<h4>${title} ${list.length}</h4>` + list.sort((a, b) => N[b][2] - N[a][2]).slice(0, 60).map(j => `<div class="nb" data-n="${j}">${esc(N[j][3])}<small>${esc(N[j][5].split("/").pop())}</small></div>`).join("") : "";
+  const ties = nodeTies(i).map(t => t[0]);
+  context = new Set([selCluster]); related = new Set(ties);
+  card.style.display = "block";
+  card.innerHTML = `<b>${esc(n[3])}</b><div class="m">${esc(n[4])}${n[5] ? " in " + esc(n[5]) : ""}</div><div class="m">${n[2]} links${n[6] ? ", " + n[6] + " lint findings" : ""}</div><div class="nb m" data-c="${selCluster}">${esc(clusterText(c))}</div>` +
+    listOf("Used by", usedBy) + listOf("Uses", uses);
+  frameWith(selCluster, ties);
+}
+function clearSelection() { selNode = selCluster = null; context = new Set(); related = new Set(); card.style.display = "none"; dirty = true; }
+card.addEventListener("click", e => { const el = e.target.closest(".nb"); if (!el) return; if (el.dataset.n) selectNode(+el.dataset.n); else selectCluster(+el.dataset.c); });
+
+// ---- input -------------------------------------------------------------------------------------------
+function resize() { DPR = window.devicePixelRatio || 1; W = innerWidth; H = innerHeight; for (const c of [glc, lc]) { c.width = W * DPR; c.height = H * DPR; } dirty = true; }
+addEventListener("resize", resize);
+function nodeAt(sx, sy) {
+  const [wx, wy] = toWorld(sx, sy); let best = null, bestD = 12 / view.k;
+  C.forEach((c, i) => { if (Math.hypot(c.x - wx, c.y - wy) > c.r + 24 || !open(c, i)) return; for (let k = c.start; k < c.start + c.count; k++) { const d = Math.hypot(N[k][0] - wx, N[k][1] - wy); if (d < bestD) { bestD = d; best = k; } } });
+  return best;
+}
+const clusterAt = (sx, sy) => { const [wx, wy] = toWorld(sx, sy), i = C.findIndex(c => Math.hypot(c.x - wx, c.y - wy) < c.r); return i < 0 ? null : i; };
+let drag = null; const tip = document.getElementById("tip");
+glc.addEventListener("mousedown", e => { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false }; goal.on = false; });
+addEventListener("mouseup", e => { if (drag && !drag.moved && e.target === glc) { const n = nodeAt(e.clientX, e.clientY), c = clusterAt(e.clientX, e.clientY); if (n !== null) selectNode(n); else if (c !== null) selectCluster(c); else clearSelection(); } drag = null; });
+addEventListener("mousemove", e => {
+  mouse.sx = e.clientX; mouse.sy = e.clientY;
+  if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; view.x = drag.vx - dx / view.k; view.y = drag.vy - dy / view.k; }
+  else if (e.target === glc) { hoverNode = nodeAt(e.clientX, e.clientY); hoverCluster = hoverNode === null ? clusterAt(e.clientX, e.clientY) : null; const t = hoverNode !== null ? `${N[hoverNode][3]}  ${N[hoverNode][5]}` : null; tip.style.display = t ? "block" : "none"; if (t) { tip.textContent = t; tip.style.left = e.clientX + 14 + "px"; tip.style.top = e.clientY + 14 + "px"; } }
+  dirty = true;
+});
+glc.addEventListener("wheel", e => { e.preventDefault(); goal.on = false; const [wx, wy] = toWorld(e.clientX, e.clientY); view.k = Math.max(0.005, Math.min(10, view.k * Math.exp(-e.deltaY * 0.0016))); view.x = wx - (e.clientX - W / 2) / view.k; view.y = wy - (e.clientY - H / 2) / view.k; dirty = true; }, { passive: false });
+const search = document.getElementById("search"), results = document.getElementById("results");
+addEventListener("keydown", e => { if (e.key === "Escape") { search.value = ""; results.innerHTML = ""; search.blur(); clearSelection(); } else if (e.key === "f" && document.activeElement !== search) fit(); else if (e.key === "/" && document.activeElement !== search) { e.preventDefault(); search.focus(); } });
+search.addEventListener("input", () => {
+  const q = search.value.trim().toLowerCase(); results.innerHTML = ""; if (q.length < 2) return;
+  const hits = []; C.forEach((c, i) => { if (c.name.toLowerCase().includes(q)) hits.push([c.count + 1e6, `<div data-c="${i}">${esc(clusterText(c))}<small>cluster on ${esc(P[c.plane].name)}</small></div>`]); });
+  for (let i = 0; i < N.length; i++) if (N[i][3].toLowerCase().includes(q)) hits.push([N[i][2], `<div data-n="${i}">${esc(N[i][3])}<small>${esc(N[i][5])}</small></div>`]);
+  results.innerHTML = hits.sort((a, b) => b[0] - a[0]).slice(0, 12).map(h => h[1]).join("");
+});
+results.addEventListener("click", e => { const el = e.target.closest("div[data-n],div[data-c]"); if (!el) return; if (el.dataset.n) selectNode(+el.dataset.n); else selectCluster(+el.dataset.c); results.innerHTML = ""; search.value = ""; });
+const kinds = document.getElementById("kinds");
+G.kinds.forEach((k, i) => { const b = document.createElement("button"), col = KIND_COLOR[i].map(v => v * 255 | 0); b.innerHTML = `<i style="background:rgb(${col})"></i>${k}`; b.className = kindOn[i] ? "" : "off"; b.onclick = () => { kindOn[i] = !kindOn[i]; b.className = kindOn[i] ? "" : "off"; dirty = true; }; kinds.appendChild(b); });
+
+function loop() {
+  if (goal.on) { const t = 0.18; view.x += (goal.x - view.x) * t; view.y += (goal.y - view.y) * t; view.k *= Math.pow(goal.k / view.k, t); if (Math.abs(goal.k / view.k - 1) < 0.002 && Math.hypot(goal.x - view.x, goal.y - view.y) * view.k < 0.5) goal.on = false; dirty = true; }
+  if (dirty) { dirty = false; draw(); }
+  requestAnimationFrame(loop);
+}
+window.__test = {
+  focusCluster: name => selectCluster(C.findIndex(c => c.name.includes(name))),
+  selectNode: label => selectNode(N.findIndex(n => n[3] === label)),
+  nudge: i => { goal.on = false; view.x += Math.sin(i / 6) * 30 / view.k; view.k *= 1 + Math.cos(i / 5) * 0.03; dirty = true; },
+};
+resize(); fit(); view.x = goal.x; view.y = goal.y; view.k = goal.k; loop();
+</script>
+</body>
+</html>
