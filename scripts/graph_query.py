@@ -33,7 +33,7 @@ import os
 import re
 import sys
 import time
-from collections import deque
+from collections import Counter, deque
 
 STRUCTURAL = frozenset({"contains", "method", "defines", "binds", "rationale_for", "points_outside_root",
                         "declares", "may_use"})
@@ -103,6 +103,38 @@ def build_index(graph):
     return {"root": graph["graph"].get("root"), "relations": relations, "nodes": rows, "uses": uses,
             "used_by": used_by, "holds": holds, "names": names, "files": files, "labels": labels,
             "claims": {unit: [f"{c['id']} {c['verdict'] or c['state']}" for c in rows_] for unit, rows_ in claims.items()}}
+
+
+_WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]{3,}")
+WRITTEN_TOP = 30
+
+
+def written_in(index):
+    """Where each defined name is written, read from the files: {name: [how many files, [[file node, times], ...]]}.
+
+    The parse links a use only where it can resolve it. A function reached as module.name(),
+    passed by name, or named in a string is still written down somewhere, and this finds it. It
+    is a fact about text, not meaning: two things of one name are counted together.
+    """
+    nodes, root = index["nodes"], index.get("root") or ""
+    wanted = {row["label"].rstrip("()").lstrip(".").split(".")[-1]
+              for row in nodes if row["kind"] in ("function", "class") and row["own"]}
+    wanted = {name for name in wanted if len(name) >= 4}
+    found = {}
+    for i, row in enumerate(nodes):
+        if row["kind"] != "file" or os.path.splitext(row["file"])[1].lower() not in CHECK_EXTENSIONS:
+            continue
+        full = os.path.join(root, row["file"])
+        try:
+            if os.path.getsize(full) > CHECK_FILE_BYTES:
+                continue
+            with open(full, encoding="utf-8", errors="replace") as handle:
+                counts = Counter(_WORD.findall(handle.read()))
+        except OSError:
+            continue
+        for name in counts.keys() & wanted:
+            found.setdefault(name, []).append([i, counts[name]])
+    return {name: [len(rows), sorted(rows, key=lambda r: (-r[1], r[0]))[:WRITTEN_TOP]] for name, rows in found.items()}
 
 
 # ---- traversal --------------------------------------------------------------------------------
@@ -356,6 +388,8 @@ def main():
     if args.cmd == "index":
         started = time.time()
         index = build_index(read_json(args.graph))
+        index["written"] = written_in(index)
+        index["built"] = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(args.graph)))
         os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
         with open(args.out, "w", encoding="utf-8", newline="\n") as handle:
             json.dump(index, handle, separators=(",", ":"), ensure_ascii=False)

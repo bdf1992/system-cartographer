@@ -1,6 +1,6 @@
 # Releases
 
-## 3.5.0 (2026-10-07)
+## 3.7.0 (2026-10-07)
 
 On a records-heavy root the view drew every record as one disc: 3,718 files under one label,
 15% of them linked to anything. The owner asked what on the map needed more classification.
@@ -16,21 +16,112 @@ On a records-heavy root the view drew every record as one disc: 3,718 files unde
   A match on a file name alone, or on an id that is a plain lower-case word, is INFERRED: a
   word can do either by chance. A declared id inside a longer string is a `mentions` link,
   INFERRED. Where two records share a name, a reference is followed only when one of them has
-  the type that field usually points at. On that root: 10,289 `refers_to` links (7,346
-  EXTRACTED, 2,943 INFERRED), 2,891 `mentions`, and 3,725 of 3,802 records with at least one.
+  the type that field usually points at, and that link is INFERRED. On that root: 10,290
+  `refers_to` links (7,299 EXTRACTED, 2,991 INFERRED), 2,891 `mentions`, and 3,725 of 3,802
+  records with at least one.
 - **The view draws one cluster per record type on each plane.** A type with fewer than five
   records there is shown with its folder, and a folder's worth still under five as `other`.
   The disc became 20 clusters: 19 named and `other`.
 - `GRAPH_REPORT.md` has a Records section: the counts above, the types, and which type names
   which by what field.
-- `tests/test_records.py` (new, the repository's first tests): 22 cases on a made-up root. Run
+- `tests/test_records.py` (new, the repository's first tests): 22 cases on a made-up root; each of 17 rules broken in a copy turns one red. Run
   with `python -m unittest discover -s tests`.
 
 What this does not do. Records are read from the root as it is when the export runs, not from
-the scan, so the counts move if the root has changed. Of the 2,943 INFERRED links on that root,
+the scan, so the counts move if the root has changed. Of the 2,991 INFERRED links on that root,
 2,875 are a repository's name matching `control/policy/<name>.json`, which is a record about
-the repository and not the repository; the other 68 are words that are also file names or
-ids, such as `task`, `done` or `kernel`. An id written as part of a path is not followed.
+the repository and not the repository; 48 are one shared name settled by its field; the other
+68 are words that are also file names or ids, such as `task`, `done` or `kernel`. An id written as part of a path is not followed.
+## 3.6.0 (2026-10-07)
+
+Round three of the trials. An agent that believes every line and never checks was wrong on
+three of eight jobs, down from six of seven, and all three had one cause: the parse does not
+link a function reached as `module.name()` or passed by name, so its real users were missing.
+Cautious wording does not repair that, and the same agent reported that the caution, printed on
+nearly every card, teaches a reader to skip it.
+
+- **`graph_query.py index` records where each defined name is written.** `written_in` reads
+  the scanned files once and keeps, for every function and class name of four letters or more,
+  the files that write it. It is a fact about text beside the parsed links. The index also
+  records the date of the graph it was built from.
+- **The hook reports those files.** `its name is also written in ...` names the files the parse
+  did not link, and `tests that write its name` the test files. A name with several
+  definitions written in more than 40 files is said to be too common to search by.
+- **An absence is now a checked fact where it can be.** `no other file uses it or writes its
+  name` and `no test names it` are printed only when the text was searched; elsewhere the hook
+  still says what the map cannot see.
+- **Wording from a reader given no explanation:** `its file is for:` in place of `its file:`;
+  the map's date in the heading; the undefined `claims on its cluster` line is gone; guessed
+  links are not mentioned when the text search covers them.
+
+A third agent, set to make the hook crash or lie, found no input that raised or hung, and four
+defects.
+
+- **A copy of a file reads its own source.** In a worktree the signature, docstring and line
+  number came from the mapped checkout, so a function at line 3261 was shown at 2167. They are
+  now read from the copy, and the card says the users are the mapped checkout's.
+- **Uses in the thing's own file are counted from the syntax tree,** for Python: a bare name
+  for a function, `self.name` or `Class.name` for a method. Counting the word gave "named 46
+  more times" to a function its file never calls. Other languages say "written".
+- **A thing the map holds that is no longer in the file says so.**
+- **Cards left out for room are counted,** and Python advice stays on Python files.
+
+## 3.5.1 (2026-10-07)
+
+An agent was asked to believe every line of the search hook and never check, on six small jobs
+(safe to delete, which tests to run, safe to rename, dead code), and a reviewer then checked
+each conclusion. Six of seven conclusions drawn from a line that said nothing, or said no, were
+wrong. The hook was right about what it found and misleading about what it did not.
+
+- **Uses inside the thing's own file are counted,** from the file as it is now. A function
+  called only by its neighbours showed no users and read as safe to delete.
+- **A function no test names falls back to the tests of its file.** "No test refers to it
+  directly" read as "run no tests".
+- **An absence is only ever "not seen".** Where the map links no other file, the hook says so
+  and names what the map cannot see (loads by name: command tables, importlib, test discovery,
+  config), and that it is not evidence of non-use.
+- **A note may be keyed by a pattern** (`wskernel/commands/*`), so a folder's component and
+  purpose reach every file in it.
+- **The gap line no longer points at a file outside the tree.**
+
+A second agent, set to break name matching and wording, reported ten more defects.
+
+- **A user the map only guessed from a name is never named.** A method called `json` was shown
+  as used by four files that import the `json` module. Guessed links are now a count, marked
+  unchecked.
+- **Every definition of a searched name in the returned files is shown,** with its class for a
+  method; two methods of one name in one file were one card.
+- **A path only matches a mapped file it is a copy of.** A file in another project that ended
+  with the same two path parts got the mapped file's facts; the two files must now begin alike.
+- **Patterns give up their name:** `^def guard`, `guard\s*\(`, `write_record\(.*overwrite`.
+  A dotted name is only answered in a returned file, and a word with many definitions is not
+  listed.
+- **A docstring is not cut at "e.g.",** a first sentence too short to say anything is followed
+  by the rest, and a clipped line ends in an ellipsis.
+- **Of many returned files, the most used are shown,** tests last.
+
+## 3.5.0 (2026-10-07)
+
+Four agents used the search hook on real work (tracing a path, planning a change, orienting as
+a newcomer, trying to break it) and reported what its lines did for them. All four ignored the
+transitive totals, and one found that a searched name could be answered with another file's
+function. `hooks/enrich_search.py` now says what they asked for.
+
+- **A name means the definition in a file the search returned.** A name defined once is that
+  definition. A name defined in several files, none of them returned, is reported as several
+  with the files named; it is never guessed. Before, `main` or `run` returned whichever
+  definition the map found first.
+- **The code speaks for itself.** For Python, the first sentence of the docstring and a
+  function's signature are read from the file as it is now, so they cannot be stale.
+- **Users are named, not counted.** The files that refer to a thing, busiest first, and the
+  test files that refer to it directly, each with the number of files. The transitive totals
+  are left to `graph_query.py impact`.
+- **One card per file, whole cards only.** A function shown stands for its file; a card that
+  will not fit is left out and no line is cut.
+- **Paths match whatever their case or slashes,** and a copy of the tree elsewhere (a worktree)
+  matches the file it is a copy of. `a|b` patterns are read as two names.
+- **A file the map does not parse says so,** in place of "no dependents". A file with neither a
+  docstring nor a note is told where to add one.
 
 ## 3.4.0 (2026-10-06)
 
