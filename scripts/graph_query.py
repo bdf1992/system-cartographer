@@ -1,0 +1,329 @@
+#!/usr/bin/env python3
+"""graph_query.py -- ask the map: where is it, what does it reach, what does changing it hit.
+
+A text search finds where a name is written. It does not say what that thing is part of,
+what depends on it, or which tests would notice it change. The graph already holds those
+answers; this reads them out fast enough to sit beside every search.
+
+    python scripts/graph_query.py index   --graph <run>/graph/graph.json --out <run>/graph-index.json
+    python scripts/graph_query.py search  write_record      --index <run>/graph-index.json
+    python scripts/graph_query.py impact  write_record      --index ...   # what breaks if this changes
+    python scripts/graph_query.py reach   write_record      --index ...   # what this needs
+    python scripts/graph_query.py path    guard write_record --index ...  # how one depends on the other
+    python scripts/graph_query.py measure                   --index ...   # the graph's own numbers
+
+The words, each one thing:
+
+  depends   a link whose source needs its target: calls, imports, inherits, uses, references,
+            runs, names. A link that only says where something sits (contains, method,
+            defines) is not a dependency and is never followed as one.
+  impact    everything that depends on a thing, directly or through others: what a change
+            to it can reach. For a file, the impact of the file and of what it holds.
+  reach     the other direction: everything a thing depends on.
+  test      a node whose file is a test file (under tests/, or named test_*, *_test.*,
+            *.test.*, *.spec.*). "Tests that reach it" is the impact that falls in tests.
+
+`index` runs once per graph and writes integer adjacency lists; every other command loads
+that file. Standard library only.
+"""
+import argparse
+import json
+import math
+import os
+import re
+import sys
+import time
+from collections import deque
+
+STRUCTURAL = frozenset({"contains", "method", "defines", "binds", "rationale_for", "points_outside_root",
+                        "declares", "may_use"})
+_TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/.]+$|\.(test|spec)\.[^/]+$")
+_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
+DEPTHS = 3
+
+
+def read_json(path):
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def is_test(source_file):
+    return bool(source_file) and bool(_TEST_FILE.search(source_file.replace("\\", "/")))
+
+
+def build_index(graph):
+    """The graph as parallel arrays and integer adjacency, plus the lookups a search needs."""
+    nodes = graph["nodes"]
+    ident = {node["id"]: i for i, node in enumerate(nodes)}
+    relations, rel_id = [], {}
+    uses = [[] for _ in nodes]        # i -> [[j, relation, inferred]]  i depends on j
+    used_by = [[] for _ in nodes]
+    holds = [[] for _ in nodes]       # a file or class -> what it contains
+    for link in graph["links"]:
+        a, b, relation = ident[link["source"]], ident[link["target"]], link["relation"]
+        if a == b:
+            continue
+        if relation in STRUCTURAL:
+            if relation in ("contains", "method", "defines"):
+                holds[a].append(b)
+            continue
+        r = rel_id.setdefault(relation, len(relations))
+        if r == len(relations):
+            relations.append(relation)
+        inferred = 1 if link.get("confidence") == "INFERRED" else 0
+        uses[a].append([b, r, inferred])
+        used_by[b].append([a, r, inferred])
+    labels = graph["graph"].get("community_labels") or {}
+    claims = graph["graph"].get("claims") or {}
+    rows = []
+    for node in nodes:
+        source = node.get("source_file") or ""
+        community = node.get("code_community")
+        rows.append({
+            "label": str(node.get("label") or node["id"]), "kind": node["kind"], "file": source,
+            "line": node.get("source_location") or "", "layer": node.get("layer") or "",
+            "group": node.get("asset_kind") or node.get("primary_concern") or "",
+            "cluster": f"code-{community}" if community is not None else "",
+            "test": is_test(source), "lint": sum((node.get("lint") or {}).values()),
+        })
+    names = {}
+    for i, row in enumerate(rows):
+        key = row["label"].lower().rstrip("()").lstrip(".")
+        names.setdefault(key, []).append(i)
+    files = {}
+    for i, row in enumerate(rows):
+        if row["file"]:
+            files.setdefault(row["file"], []).append(i)
+    return {"root": graph["graph"].get("root"), "relations": relations, "nodes": rows, "uses": uses,
+            "used_by": used_by, "holds": holds, "names": names, "files": files, "labels": labels,
+            "claims": {unit: [f"{c['id']} {c['verdict'] or c['state']}" for c in rows_] for unit, rows_ in claims.items()}}
+
+
+# ---- traversal --------------------------------------------------------------------------------
+
+def start_set(index, i):
+    """A node, and for a file or class everything it holds: changing a file changes what is in it."""
+    seen, queue = {i}, deque([i])
+    while queue:
+        for j in index["holds"][queue.popleft()]:
+            if j not in seen:
+                seen.add(j)
+                queue.append(j)
+    return seen
+
+
+def spread(index, i, table, limit=None):
+    """Breadth-first over `table` from a node's start set. Returns {node: depth}, depth from 1."""
+    start = start_set(index, i)
+    depth, queue = {}, deque((s, 0) for s in start)
+    while queue:
+        node, d = queue.popleft()
+        if limit is not None and d >= limit:
+            continue
+        for other, _relation, _inferred in table[node]:
+            if other not in start and other not in depth:
+                depth[other] = d + 1
+                queue.append((other, d + 1))
+    return depth
+
+
+def summary(index, i, table):
+    """The numbers of one direction: how many at each depth, in how many files, how many are tests."""
+    depth = spread(index, i, table)
+    nodes = index["nodes"]
+    by_depth = [sum(1 for d in depth.values() if d == k) for k in range(1, DEPTHS + 1)]
+    files = {nodes[j]["file"] for j in depth if nodes[j]["file"]}
+    tests = sorted({nodes[j]["file"] for j in depth if nodes[j]["test"]})
+    direct = [j for j, d in depth.items() if d == 1]
+    return {"total": len(depth), "by_depth": by_depth, "beyond": len(depth) - sum(by_depth), "files": len(files),
+            "tests": len(tests), "test_files": tests, "direct": direct, "depth": depth}
+
+
+# ---- search -----------------------------------------------------------------------------------
+
+def find(index, text, limit=8):
+    """Nodes matching a name or a path, best first: an exact name, then a prefix, then a part of
+    it, then a file path; among equals, what more things depend on."""
+    query = text.strip().lower().rstrip("()").lstrip(".")
+    nodes, scored = index["nodes"], {}
+    if not query:
+        return []
+    for i in index["names"].get(query, []):
+        scored[i] = 100
+    path = text.strip().replace("\\", "/")
+    root = (index.get("root") or "").replace("\\", "/").rstrip("/")
+    if root and path.lower().startswith(root.lower() + "/"):
+        path = path[len(root) + 1:]
+    for i in index["files"].get(path, []):
+        scored[i] = max(scored.get(i, 0), 95 if nodes[i]["kind"] == "file" else 30)
+    if len(scored) < limit:
+        for key, ids in index["names"].items():
+            score = 60 if key.startswith(query) else 40 if query in key else 0
+            if score:
+                for i in ids:
+                    scored.setdefault(i, score)
+        for rel, ids in index["files"].items():
+            if query in rel.lower():
+                for i in ids:
+                    if nodes[i]["kind"] == "file":
+                        scored.setdefault(i, 20)
+    rank = lambda i: (-scored[i], nodes[i]["test"], -len(index["used_by"][i]), nodes[i]["file"], i)  # noqa: E731
+    return sorted(scored, key=rank)[:limit]
+
+
+def resolve(index, text):
+    hits = find(index, text, limit=1)
+    if not hits:
+        raise SystemExit(f"graph_query: nothing in the graph is named {text!r}")
+    return hits[0]
+
+
+def describe(index, i, impact=None):
+    """One hit as a record: what it is, where it sits, and what depends on it."""
+    row = index["nodes"][i]
+    impact = impact or summary(index, i, index["used_by"])
+    return {"label": row["label"], "kind": row["kind"], "file": row["file"], "line": row["line"],
+            "layer": row["layer"], "group": row["group"], "cluster": row["cluster"], "test": row["test"],
+            "lint": row["lint"], "claims": index["claims"].get(row["cluster"], []),
+            "used_by": impact["by_depth"][0], "impact": impact["total"], "impact_files": impact["files"],
+            "tests": impact["tests"], "uses": len({j for j, _r, _i in index["uses"][i]})}
+
+
+def one_line(record):
+    where = f"{record['file']}{' ' + record['line'] if record['line'] else ''}" if record["file"] else record["layer"]
+    plural = lambda n, word: f"{n} {word}" + ("" if n == 1 else "s")  # noqa: E731
+    text = f"{record['label']} ({record['kind']}, {where}): "
+    if not record["impact"]:
+        text += "a test" if record["test"] else "nothing in the map depends on it"
+    else:
+        text += (f"used by {record['used_by']} directly, {record['impact']} in all across "
+                 f"{plural(record['impact_files'], 'file')}")
+        if not record["test"]:
+            text += f"; {plural(record['tests'], 'test file')} can reach it" if record["tests"] else "; no test reaches it"
+    if record["lint"]:
+        text += f"; {record['lint']} lint"
+    if record["claims"]:
+        text += f"; claims on its cluster: {', '.join(record['claims'])}"
+    return text
+
+
+def shortest_path(index, a, b):
+    """The shortest chain of dependencies from a to b, as node indices, or None."""
+    before, queue, goal = {a: None}, deque([a]), start_set(index, b)
+    for s in start_set(index, a):
+        if s not in before:
+            before[s] = a
+            queue.append(s)
+    while queue:
+        node = queue.popleft()
+        if node in goal:
+            chain = []
+            while node is not None:
+                chain.append(node)
+                node = before[node]
+            return chain[::-1]
+        for other, _r, _i in index["uses"][node]:
+            if other not in before:
+                before[other] = node
+                queue.append(other)
+    return None
+
+
+def measure(index):
+    """The graph's own numbers on the four questions: can a thing be found by its name, how far
+    does a change reach, what do tests reach, and what does nothing use."""
+    nodes = index["nodes"]
+    definitions = [i for i, n in enumerate(nodes) if n["kind"] in ("function", "class") and not n["test"]]
+    shared = sum(1 for ids in index["names"].values() if len(ids) > 1 for i in ids
+                 if nodes[i]["kind"] in ("function", "class") and not nodes[i]["test"])
+    tested, impacts = 0, []
+    reached_by_test = set()
+    for i, n in enumerate(nodes):          # everything any test depends on, at any depth
+        if n["test"]:
+            reached_by_test.update(spread(index, i, index["uses"]))
+    unused = []
+    for i in definitions:
+        direct = len({j for j, _r, _i in index["used_by"][i]})
+        impacts.append(direct)
+        tested += i in reached_by_test
+        if not direct:
+            unused.append(i)
+    impacts.sort()
+    widest = sorted(definitions, key=lambda i: -len(index["used_by"][i]))[:10]
+    return {
+        "definitions_outside_tests": len(definitions),
+        "name_is_unique": len(definitions) - shared, "name_is_shared": shared,
+        "reached_by_a_test": tested, "not_reached_by_any_test": len(definitions) - tested,
+        "used_by_nothing": len(unused),
+        "direct_users_median": impacts[len(impacts) // 2] if impacts else 0,
+        "direct_users_p90": impacts[int(len(impacts) * 0.9)] if impacts else 0,
+        "most_used": [[nodes[i]["label"], nodes[i]["file"], len({j for j, _r, _i in index["used_by"][i]})] for i in widest],
+        "inferred_share_of_dependencies": round(
+            sum(inf for row in index["uses"] for _j, _r, inf in row) / max(1, sum(len(row) for row in index["uses"])), 3),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("index")
+    p.add_argument("--graph", required=True)
+    p.add_argument("--out", required=True)
+    for name in ("search", "impact", "reach"):
+        p = sub.add_parser(name)
+        p.add_argument("text")
+        p.add_argument("--index", required=True)
+        p.add_argument("--json", action="store_true")
+        p.add_argument("--limit", type=int, default=8)
+    p = sub.add_parser("path")
+    p.add_argument("a")
+    p.add_argument("b")
+    p.add_argument("--index", required=True)
+    p = sub.add_parser("measure")
+    p.add_argument("--index", required=True)
+    args = parser.parse_args()
+
+    if args.cmd == "index":
+        started = time.time()
+        index = build_index(read_json(args.graph))
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        with open(args.out, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(index, handle, separators=(",", ":"), ensure_ascii=False)
+        print(json.dumps({"index": args.out, "nodes": len(index["nodes"]), "relations": index["relations"],
+                          "bytes": os.path.getsize(args.out), "seconds": round(time.time() - started, 2)}, indent=2))
+        return
+    index = read_json(args.index)
+    nodes = index["nodes"]
+    if args.cmd == "search":
+        records = [describe(index, i) for i in find(index, args.text, args.limit)]
+        print(json.dumps(records, indent=2) if args.json else "\n".join(one_line(r) for r in records) or "no match")
+    elif args.cmd in ("impact", "reach"):
+        i = resolve(index, args.text)
+        table = index["used_by"] if args.cmd == "impact" else index["uses"]
+        result = summary(index, i, table)
+        nearest = sorted(result["direct"], key=lambda j: (-len(index["used_by"][j]), nodes[j]["file"]))[:args.limit]
+        out = {"of": describe(index, i), "direction": "depends on it" if args.cmd == "impact" else "it depends on",
+               "total": result["total"], "by_depth": result["by_depth"], "beyond_depth_3": result["beyond"],
+               "files": result["files"], "test_files": result["test_files"][:args.limit], "tests": result["tests"],
+               "nearest": [f"{nodes[j]['label']}  {nodes[j]['file']}" for j in nearest]}
+        if args.json:
+            print(json.dumps(out, indent=2))
+        else:
+            verb = "What depends on" if args.cmd == "impact" else "What is needed by"
+            print(f"{verb} {nodes[i]['label']} ({nodes[i]['kind']}, {nodes[i]['file']}):")
+            print(f"  {result['total']} in all across {result['files']} files: "
+                  f"{result['by_depth'][0]} directly, {result['by_depth'][1]} one step further, "
+                  f"{result['by_depth'][2]} two steps, {result['beyond']} beyond")
+            print(f"  {result['tests']} test files among them" + (": " + ", ".join(result["test_files"][:args.limit]) if result["tests"] else ""))
+            for line in out["nearest"]:
+                print("  - " + line)
+    elif args.cmd == "path":
+        chain = shortest_path(index, resolve(index, args.a), resolve(index, args.b))
+        print("no dependency path" if chain is None else "\n".join(
+            f"{'  ' * k}{nodes[j]['label']}  {nodes[j]['file']}" for k, j in enumerate(chain)))
+    elif args.cmd == "measure":
+        print(json.dumps(measure(index), indent=2))
+
+
+if __name__ == "__main__":
+    main()

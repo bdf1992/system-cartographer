@@ -404,6 +404,58 @@ and flooded the screen, the next drew every connection of a hub as a starburst.
 It is a view, not Schematically: no typed symbols, no editing, planes drawn flat. It
 carries a depth index per plane and nothing uses it yet.
 
+## Search, reach and impact
+
+A text search finds where a name is written. `scripts/graph_query.py` answers what the
+map knows about it, from an index built once per graph:
+
+```bash
+python scripts/graph_query.py index  --graph "$RUN/graph/graph.json" --out "$RUN/graph-index.json"
+python scripts/graph_query.py search write_record --index "$RUN/graph-index.json"
+python scripts/graph_query.py impact write_record --index ...   # what depends on it: what a change can hit
+python scripts/graph_query.py reach  write_record --index ...   # what it depends on
+python scripts/graph_query.py path   A B          --index ...   # how A comes to depend on B
+python scripts/graph_query.py measure             --index ...
+```
+
+- **depends** means a link whose source needs its target: calls, imports, inherits, uses,
+  references, runs, names. A link that only says where something sits is never followed.
+- **impact** is everything that depends on a thing, directly or through others, with the
+  count at one, two and three steps, the files it spans, and the test files among them.
+  For a file it is the impact of the file and of everything it holds.
+- **search** ranks an exact name first, then a prefix, a part, a path; among equals, the
+  one more things depend on. Every hit says what it is, where, and its impact.
+- **measure** prints the graph's own numbers: how many definitions have a name nothing
+  else shares (can be found by name alone), how many a test reaches through calls, how
+  many nothing refers to, the median and 90th-centile count of direct users, the most
+  used, and the share of dependencies that are inferred.
+
+Read the numbers for what they are. Impact follows file-level imports as well as calls,
+so it is what a change *can* reach, an upper bound, not what it will break. "Reached by a
+test" follows calls and uses from test code and so misses what a test touches only
+through a framework. "Nothing refers to it" cannot see dynamic dispatch: a command
+handler looked up by name is used and will be listed as unused.
+
+### Wrapping an agent's own search
+
+`hooks/enrich_search.py` is a Claude Code `PostToolUse` hook for `Grep`, `Glob` and
+`Read`. After the search runs it adds up to three lines of context: for the name searched
+for and the first files returned, what each is, how many things use it, how far a change
+reaches, how many test files can reach it, and any claims on its cluster. The search
+result itself is not changed.
+
+```json
+{"hooks": {"PostToolUse": [{"matcher": "Grep|Glob|Read", "hooks": [
+  {"type": "command", "command": "python <skill>/hooks/enrich_search.py"}]}]}}
+```
+
+It reads the index named by `CARTOGRAPHER_INDEX`, else `.cartographer/graph-index.json`
+in the working directory or any folder above. It adds a line only for an exact name or a
+scanned file; a near miss adds nothing. With no index, an unreadable one, an unfamiliar
+payload or nothing to add, it prints nothing and exits 0, so it cannot fail a tool.
+`CARTOGRAPHER_ENRICH=off` switches it off. The index is a snapshot: rebuild it when the
+code has moved, or the lines describe the code as it was.
+
 ## Graph and schematic
 
 After any scan, `scripts/graph_export.py` turns the scan directory into one graph and
