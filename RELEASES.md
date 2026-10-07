@@ -1,5 +1,28 @@
 # Releases
 
+## 3.5.0 (2026-10-07)
+
+Four agents used the search hook on real work (tracing a path, planning a change, orienting as
+a newcomer, trying to break it) and reported what its lines did for them. All four ignored the
+transitive totals, and one found that a searched name could be answered with another file's
+function. `hooks/enrich_search.py` now says what they asked for.
+
+- **A name means the definition in a file the search returned.** A name defined once is that
+  definition. A name defined in several files, none of them returned, is reported as several
+  with the files named; it is never guessed. Before, `main` or `run` returned whichever
+  definition the map found first.
+- **The code speaks for itself.** For Python, the first sentence of the docstring and a
+  function's signature are read from the file as it is now, so they cannot be stale.
+- **Users are named, not counted.** The files that refer to a thing, busiest first, and the
+  test files that refer to it directly, each with the number of files. The transitive totals
+  are left to `graph_query.py impact`.
+- **One card per file, whole cards only.** A function shown stands for its file; a card that
+  will not fit is left out and no line is cut.
+- **Paths match whatever their case or slashes,** and a copy of the tree elsewhere (a worktree)
+  matches the file it is a copy of. `a|b` patterns are read as two names.
+- **A file the map does not parse says so,** in place of "no dependents". A file with neither a
+  docstring nor a note is told where to add one.
+
 ## 3.4.0 (2026-10-06)
 
 The search hook led with raw counts. The owner asked that it lead with what is known about a
