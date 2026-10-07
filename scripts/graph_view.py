@@ -13,8 +13,9 @@ What is computed here, once, so that opening the view does no layout work:
             names a declaration (a JSON file with `layers: [{name}]` and `registrations:
             [{selector, layer}]`, selectors being path globs); otherwise on its top folder.
             Actors, each asset kind, names from outside and the boundary get a plane each.
-  cluster   the unit that opens and closes: a code community, or one plane's worth of
-            anything that has none. A cluster sits on the plane most of its members are on.
+  cluster   the unit that opens and closes: a code community, the records of one type, or
+            one plane's worth of anything that has neither. A cluster sits on the plane most
+            of its members are on.
   position  planes are packed into rows; inside a plane, clusters start where a spring layout
             of the links between them puts them (when networkx is importable) and are then
             placed largest first, each at the nearest free spot, so none overlap; members sit
@@ -49,9 +50,10 @@ import graph_export as ge  # noqa: E402
 SPACING = 26.0            # world units between two member nodes
 CLUSTER_GAP = 28.0
 PLANE_GAP = 260.0
+SMALL_TYPE = 5            # records of a type before the type is a cluster of its own
 KINDS = ["calls", "imports", "uses", "holds", "other"]
 KIND = {"calls": 0, "indirect_call": 0, "imports": 1, "imports_from": 1, "inherits": 1, "re_exports": 1,
-        "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2,
+        "dynamic_import": 1, "python_import": 1, "js_import": 1, "js_require": 1, "references": 2, "uses": 2, "refers_to": 2, "mentions": 2,
         "contains": 3, "method": 3, "defines": 3, "binds": 3}
 FIRST_PLANES = ["actors"]
 LAST_PLANES = ["packages and names", ge.BOUNDARY_COMMUNITY]
@@ -120,8 +122,21 @@ def build_view(graph, layers, registrations):
     degree = ge.degrees(graph)
     claims = graph["graph"].get("claims") or {}
     plane = {n["id"]: plane_of(n, registrations) for n in nodes}
-    cluster = {n["id"]: f"code-{n['code_community']}" if n.get("code_community") is not None else plane[n["id"]]
-               for n in nodes}
+    # On its plane, a record type too small to be a cluster of its own is shown with the folder
+    # its records sit in, and a folder's worth that is still too small with the other leftovers.
+    def tally(names):
+        count = {}
+        for name in names.values():
+            count[name] = count.get(name, 0) + 1
+        return count
+
+    group = {n["id"]: f"{plane[n['id']]}: {n['record_type']}" for n in nodes if n.get("record_type")}
+    for fallback in ({n["id"]: os.path.basename(os.path.dirname(n["source_file"])) for n in nodes}, {}):
+        held = tally(group)
+        group = {i: name if held[name] >= SMALL_TYPE else f"{plane[i]}: {fallback.get(i, 'other')}"
+                 for i, name in group.items()}
+    cluster = {n["id"]: f"code-{n['code_community']}" if n.get("code_community") is not None
+               else group.get(n["id"], plane[n["id"]]) for n in nodes}
     members = {}
     for n in nodes:
         members.setdefault(cluster[n["id"]], []).append(n)
