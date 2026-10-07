@@ -1,5 +1,37 @@
 # Releases
 
+## 3.7.0 (2026-10-07)
+
+On a records-heavy root the view drew every record as one disc: 3,718 files under one label,
+15% of them linked to anything. The owner asked what on the map needed more classification.
+
+- **A record carries its type.** `graph_export.py` reads every file a records concern holds,
+  whichever concern it is filed under, and takes the type from `record_type`, `type` or `kind`.
+  One that names none, or cannot be read as a JSON object, is typed by the folder it sits in;
+  `record_type_basis` says which. A JSON Schema's `"type": "object"` is not a record type. On
+  that root: 3,802 records, 3,693 saying their own type, 109 typed by folder, 33 of those
+  because the file was gone since the scan, not JSON, a list or over 1 MB.
+- **Records are linked to the records they name.** A string, or an object's key, that is
+  exactly the `id` another record declares is a `refers_to` link carrying its field, EXTRACTED.
+  A match on a file name alone, or on an id that is a plain lower-case word, is INFERRED: a
+  word can do either by chance. A declared id inside a longer string is a `mentions` link,
+  INFERRED. Where two records share a name, a reference is followed only when one of them has
+  the type that field usually points at, and that link is INFERRED. On that root: 10,290
+  `refers_to` links (7,299 EXTRACTED, 2,991 INFERRED), 2,891 `mentions`, and 3,725 of 3,802
+  records with at least one.
+- **The view draws one cluster per record type on each plane.** A type with fewer than five
+  records there is shown with its folder, and a folder's worth still under five as `other`.
+  The disc became 20 clusters: 19 named and `other`.
+- `GRAPH_REPORT.md` has a Records section: the counts above, the types, and which type names
+  which by what field.
+- `tests/test_records.py` (new, the repository's first tests): 22 cases on a made-up root; each of 17 rules broken in a copy turns one red. Run
+  with `python -m unittest discover -s tests`.
+
+What this does not do. Records are read from the root as it is when the export runs, not from
+the scan, so the counts move if the root has changed. Of the 2,991 INFERRED links on that root,
+2,875 are a repository's name matching `control/policy/<name>.json`, which is a record about
+the repository and not the repository; 48 are one shared name settled by its field; the other
+68 are words that are also file names or ids, such as `task`, `done` or `kernel`. An id written as part of a path is not followed.
 ## 3.6.0 (2026-10-07)
 
 Round three of the trials. An agent that believes every line and never checks was wrong on

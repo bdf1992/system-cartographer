@@ -379,7 +379,9 @@ Positions are computed once, here, so opening the view does no layout work. Ever
 is on a **plane**, a domain: actors, each asset kind, names from outside, and for code
 either its top folder or, with `--structure`, the layer the target declares for it (a
 JSON file with `layers: [{name}]` and `registrations: [{selector, layer}]`). Every node
-is in a **cluster**: its code community, or its plane's own.
+is in a **cluster**: its code community, the records of its type, or its plane's own.
+A record's type is the one it declares (`record_type`, `type` or `kind`) or else its
+folder, and records are linked to the records they name by id.
 
 There is one rule for detail: a cluster shows its members when there is room to read
 them on screen and it is of interest, meaning under the pointer or selected. Everything
