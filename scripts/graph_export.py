@@ -42,6 +42,7 @@ Standard library only. Nothing here calls a model or a network service.
 import argparse
 import json
 import os
+import posixpath
 import random
 import re
 import shutil
@@ -81,8 +82,8 @@ MAX_SHUFFLE_WORK = 30_000_000
 CODE_EXTENSIONS = frozenset({".py", ".js", ".mjs", ".ts", ".tsx", ".sh", ".ps1", ".go", ".rs", ".cs", ".java", ".rb"})
 RECORDS = "records"
 DOCUMENTS = "documents"
-# Files a document is linked to, of those it names: enough for what it is about, not a listing.
-DOCUMENT_LINKS = 12
+# lineage.py's source classes for a file that is the product of another file or of a run.
+DERIVED_CLASSES = frozenset({"generated", "copy", "archive", "snapshot", "cache", "vendor", "transcript", "runtime-state"})
 # A path written in prose: stronger than a shared name, weaker than a parsed reference.
 NAMED_SCORE = 0.75
 # The fields a record uses to say what kind of record it is, in the order they are tried.
@@ -545,27 +546,55 @@ def records_report(graph):
     return out + [""]
 
 
+def document_targets(text, rel, nodes):
+    """The scanned files a document names by path, in the order it names them.
+
+    A path is read as a link in the document would be: against the document's own folder
+    first, then against the root, then, for a path of more than one part, by its trailing
+    parts, which is how an absolute path into the root is met. A bare file name means a
+    file beside the document and nothing else: the same name elsewhere is another file. A
+    path under `~` is in a home folder, not in the root."""
+    here, found = posixpath.dirname(rel), []
+    for match in _PATH_TOKEN.finditer(text or ""):
+        if text[match.start() - 1: match.start()] == "~":
+            continue
+        token = match.group().replace("\\", "/")
+        parts = [part for part in token.split("/") if part not in ("", ".")]
+        tries = [] if token.startswith("/") else [posixpath.normpath(posixpath.join(here, token))]
+        if len(parts) > 1:
+            tries += ["/".join(parts[first:]) for first in range(len(parts) - 1)]
+        target = next((t for t in tries if t in nodes and nodes[t]["kind"] == "file"), None)
+        if target and target != rel and target not in found:
+            found.append(target)
+    return found
+
+
 def document_layer(nodes, links, graphs, asset_kinds):
     """The documents, joined to what they are about.
 
-    A document is any file a documents concern holds. Each scanned file it names by path is
-    a `names` link, INFERRED: a path in prose says the document speaks of that file, not that
-    anything runs. Only the first DOCUMENT_LINKS files it names are kept, in the order it
-    names them, since a generated listing names hundreds and the first is its subject. A
-    file the document is already linked to is not linked again. Returns the counts."""
+    A document is any file a documents concern holds. Each scanned file it names by path
+    (document_targets) is a `names` link, INFERRED: a path in prose says the document
+    speaks of that file, not that anything runs. A written document is linked to every file
+    it names. A derived one (generated, a copy, a transcript) is linked to the first only:
+    a generated page about a module names the module and then lists what uses it, which the
+    map already holds. A file the document is already linked to is not linked again.
+    Returns the counts."""
     root = next((g.get("root") or g.get("target") for g in graphs.values() if g.get("root") or g.get("target")), "")
     documents = sorted(rel for rel, node in nodes.items() if node["kind"] == "file"
                        and any(asset_kinds.get(concern) == DOCUMENTS for concern in node["concerns"]))
     linked = {(link["source"], link["target"]) for link in links}
-    stats = {"documents": len(documents), "naming": 0, "links": 0, "left_out": 0}
+    stats = {"documents": len(documents), "naming": 0, "links": 0, "derived": 0, "left_out": 0}
     for rel in documents:
-        named = [t for t in path_targets(read_target_text(root, rel) if root else "", nodes)
-                 if t != rel and (rel, t) not in linked]
+        named = [t for t in document_targets(read_target_text(root, rel) if root else "", rel, nodes)
+                 if (rel, t) not in linked]
+        derived = nodes[rel].get("source_class") in DERIVED_CLASSES
+        kept = named[:1] if derived else named
         stats["naming"] += bool(named)
-        stats["links"] += len(named[:DOCUMENT_LINKS])
-        stats["left_out"] += len(named[DOCUMENT_LINKS:])
+        stats["derived"] += derived
+        stats["links"] += len(kept)
+        stats["left_out"] += len(named) - len(kept)
         concern = next(c for c in nodes[rel]["concerns"] if asset_kinds.get(c) == DOCUMENTS)
-        for target in named[:DOCUMENT_LINKS]:
+        for target in kept:
             links.append({"source": rel, "target": target, "relation": "names", "confidence": "INFERRED",
                           "confidence_score": NAMED_SCORE, "source_file": rel, "concern": concern})
     return stats
@@ -575,15 +604,11 @@ def documents_report(graph):
     stats = graph["graph"].get("documents") or {}
     if not stats.get("documents"):
         return []
-    classes = {}
-    for node in graph["nodes"]:
-        if node["kind"] == "file" and node.get("asset_kind") == DOCUMENTS:
-            classes[node.get("source_class") or "unknown"] = classes.get(node.get("source_class") or "unknown", 0) + 1
     return ["## Documents", "",
-            f"{stats['documents']} documents; {stats['naming']} name at least one scanned file by path. "
-            f"{stats['links']} `names` links (INFERRED) to the first {DOCUMENT_LINKS} files each one names; "
-            f"{stats['left_out']} further names were left out. By source class, of those filed as documents: "
-            + ", ".join(f"{count} {name}" for name, count in sorted(classes.items(), key=lambda i: (-i[1], i[0]))) + ".", ""]
+            f"{stats['documents']} documents, {stats['derived']} of them derived (generated, a copy, a transcript). "
+            f"{stats['naming']} name at least one scanned file by path. {stats['links']} `names` links (INFERRED): "
+            "every file a written document names, and the first a derived one names. "
+            f"{stats['left_out']} further names in derived documents were left out.", ""]
 
 
 def node_layer(node):
