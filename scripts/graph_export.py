@@ -101,7 +101,8 @@ _BACKSLASHES = re.compile(r"\\{2,}")
 _PATH_TOKEN = re.compile(r"[A-Za-z0-9_.$\\/-]+\.[A-Za-z0-9]{1,5}")
 _DRIVE_ROOT = re.compile(r"^[A-Za-z]:[\\/]*[A-Za-z]?$")
 _TEST_FILE = re.compile(r"(?i:(^|/)(tests?|__tests__|spec)/)|(^|/)test_[^/]*$|(^|/)conftest\.py$"
-                        r"|[_-]tests?\.[^/.]+$|[a-z0-9]Tests?\.[^/.]+$|\.(test|spec)\.[^/]+$")
+                        r"|(?:[_-]tests?|(?<=[a-z0-9])Tests?)\.(?!(?i:json|jsonl|md|txt|yaml|yml|toml|csv|tsv|xml|html|htm|lock|ini|cfg|log|sov)$)[^/.]+$"
+                        r"|\.(test|spec)\.[^/]+$")
 # Code the target holds but did not write: type declarations, vendored and generated files.
 _NOT_OWN = re.compile(r"\.d\.ts$|(^|/)(vendor|vendored|third_party|node_modules|dist|generated)/")
 _NOT_OWN_FOLDER = re.compile(r"(^|/)(vendor|vendored|third_party|node_modules|dist|generated)/")

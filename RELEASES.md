@@ -22,11 +22,7 @@ test, and what was not written here.
 Measured on the kept run `e52216b2af1a` of the workstation root (21,328 nodes), by building
 `graph_query.py index` from it before and after and comparing the nodes position by position:
 
-- `test` changed on 16 rows in 13 files. Ten of the files: `extensions/ws-lens/scripts/editor-test.cjs`
-  and nine records under `control/` whose names end in `-tests` or `-test`, such as
-  `control/tasks/workstation-a-pull-request-check-is-mostly-tests.json`. Only the first is a
-  test file; the other twelve are records named after a task, and the rule reads them as
-  tests (see below).
+- `test` changed on 4 rows in 1 file: `extensions/ws-lens/scripts/editor-test.cjs`.
 - `own` changed on 3 rows in 2 files: `client/src/booth/env.d.ts` and
   `client/src/booth/parts/assets.d.ts`.
 
@@ -34,9 +30,11 @@ A newly recognised test file gets no join to a subject, because `_TEST_NAME`, wh
 what a test is about, is unchanged. A hand-written `.d.ts` outside a `src` folder still counts
 as not written here.
 
-What this does not do. The `-test` and `-tests` ending is read on any file, so a JSON record
-whose name ends that way is a test to this rule; a rule that reads the extension as well would
-leave the twelve out.
+The name endings (`_test`, `_tests`, `-test`, `-tests`, `Test`, `Tests`) count only for a file
+whose extension is not a data or prose one (`.json`, `.jsonl`, `.md`, `.txt`, `.yaml`, `.yml`,
+`.toml`, `.csv`, `.tsv`, `.xml`, `.html`, `.htm`, `.lock`, `.ini`, `.cfg`, `.log`, `.sov`, in
+any letter case), because a record or note named after a test, such as the 12 task, handoff
+and reception records an earlier form of this rule caught on that root, is not a test.
 
 ## 3.12.0 (2026-10-07)
 

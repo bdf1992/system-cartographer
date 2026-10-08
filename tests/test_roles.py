@@ -219,6 +219,12 @@ class MissedCases(unittest.TestCase):
         for rel in ("web/latest.js", "pkg/contests.py"):
             self.assertFalse(ge.is_test(rel), rel)
 
+    def test_a_record_named_after_a_test_is_not_a_test(self):
+        for rel in ("control/tasks/workstation-a-pull-request-check-is-mostly-tests.json", "docs/how-we-test.md",
+                    "notes/load-test.yaml"):
+            self.assertFalse(ge.is_test(rel), rel)
+        self.assertTrue(ge.is_test("web/editor-test.cjs"))
+
     def test_a_declaration_file_under_src_is_own(self):
         self.assertFalse(ge.not_written_here("web/src/env.d.ts"))
         self.assertEqual(ge.code_role({"source_file": "web/src/env.d.ts"}), ge.OWN)

@@ -22,7 +22,8 @@ The words, each one thing:
   reach     the other direction: everything a thing depends on.
   test      a node whose file is a test file (in a folder named test, tests, __tests__ or spec in
             any letter case, or named test_*, conftest.py, *_test.*, *_tests.*, *-test.*, *-tests.*,
-            *Test.* or *Tests.* after a lower-case letter or digit, *.test.*, *.spec.*).
+            *Test.* or *Tests.* after a lower-case letter or digit, never with a data or prose
+            extension such as .json, .md or .yaml; *.test.*, *.spec.*).
             "Tests that reach it" is the impact that falls in tests.
 
 `index` runs once per graph and writes integer adjacency lists; every other command loads
