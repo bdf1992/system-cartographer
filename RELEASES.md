@@ -1,5 +1,59 @@
 # Releases
 
+## 3.16.0 (2026-10-08)
+
+The view has three levels, and links between groups are curves.
+
+- **Cluster, file, definition, each opened by room on screen.** A cluster opens when its radius
+  on screen is above 42 px (16 px when it is the selection). A parsed-code cluster that holds two
+  or more files then shows one disc per file, largest at the centre, each named with its base
+  name and member count once its radius on screen is above 11 px. A file opens into its
+  definitions when its radius on screen is above 26 px. A cluster of one file, and every cluster
+  on an asset plane (where a member already is a file), opens straight into its members as
+  before. `scripts/graph_view.py` computes the file level once: `file_groups` orders a cluster's
+  files and members, the discs are packed by `place_without_overlap` (which now takes its gap),
+  the cluster is as large as its packed files, and data.js carries `files`, one row
+  `[cluster index, x, y, r, start, count, source_file]` per disc, with `files: [first row,
+  number of rows]` on each cluster. Inside a cluster with a file level the nodes are now in
+  file order, then by links, not by links alone.
+- **Links are routed through the centres of the groups they leave and enter.** The method is
+  hierarchical edge bundling (Holten, IEEE InfoVis 2006): the control points of a link are its
+  node, the centre of its file, the centre of its cluster when the clusters differ, and the same
+  on the way in; each inner control point is moved 0.85 of the way from the straight line to
+  itself, and the Bezier curve over them is drawn as 16 segments. A link between two open files
+  of one cluster is such a curve; inside one open file it is straight, as before. Where a file
+  is closed its links are not drawn singly: each pair of files gets one straight line between
+  the two centres, stronger for more links. A selected node's links to nodes on show follow
+  their routes. A selection's band to a cluster on another plane is routed through the centres
+  of the two planes, so bands that cross planes run together; on one plane it is straight.
+- **The pointer no longer opens anything.** In 3.2.0 a cluster opened when it had room and was
+  under the pointer or selected, so clusters opened and closed as the pointer moved. The request
+  of 2026-10-06 was about clusters that change as one looks; room on screen is now the whole
+  rule. `nodeAt` finds only what is drawn: members of an open cluster with no file level, or of
+  an open file.
+- `window.__frame` gains `files`, the closed file discs drawn in the frame; its `links` now
+  counts line segments, a curve being 16.
+- Tests: `tests/test_view.py` class `Files`, 7 cases on the file rows (they cover a cluster's
+  nodes exactly, each row is one file, members inside their file's disc, no two discs of a
+  cluster overlap, every disc inside its cluster, none where there is one file). `tests/test_viewer.py`
+  class `Routes`, 9 cases run under node on `route`, `hops` and `bandHops`.
+- First values, to be judged by eye: 26 px, 0.85, 16 segments, a pad of 10 and a gap of 8
+  around a file disc; 12 member names per open file. A link between two definitions of one file
+  that is drawn as the selected node's own is routed through that file's centre, as the control
+  points say; quads of a routed band overlap a little at each bend.
+
+### Not done
+
+- No frame was looked at or timed in a browser by the engineer. The viewer's script was run
+  under node against a stub canvas on two made-up views (22 and 922 nodes) at nine zooms and
+  selections without an error; that shows it runs, not how it reads. Whether the levels and
+  curves read well, and frame time against the 3.2.0 figures on the 21,328-node run, are
+  unmeasured.
+- With the pointer out of the rule, every cluster on screen with room is open at once; the cost
+  of that on the large run is the first thing to time.
+- An open file has no outline of its own, and a selected node in a closed file is drawn over
+  its file's disc.
+
 ## 3.15.0 (2026-10-08)
 
 The viewer reads the `community` field of data.js.
