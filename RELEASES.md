@@ -1,5 +1,29 @@
 # Releases
 
+## 3.14.0 (2026-10-08)
+
+Two kinds of reference that 3.11.0 named as unlinked are now read: a site path in an HTML
+page, and a bare name of a root file.
+
+- **A site path in an HTML page is read against the page's folders.** In a `.html` or `.htm`
+  document (any letter case), a path that starts with `/` and is not under the scanned root is
+  read without its slash against the page's own folder and then each folder above it up to the
+  root, nearest first; the first that is a scanned file is linked. `client/index.html`
+  naming `/src/main.tsx` reaches `client/src/main.tsx`, and `client/booth/index.html` naming
+  `/src/booth/main.tsx` reaches `client/src/booth/main.tsx`. In any other document such a path
+  is read as before and not linked.
+- **A bare name is the root's file when it is the only one of that name.** A bare file name
+  that names no file beside the document is the same name at the root, linked only when no
+  other scanned file has that base name. `ws.cmd` and `pyproject.toml` named from a document
+  under `docs/` link; a name that two files share, or whose only file is not at the root, does
+  not. The file beside the document still comes first.
+- `tests/test_documents.py`: 8 new cases in `SitePathsAndRootNames`; two existing assertions
+  moved by one link each (the fixture's root `LICENSE.md` is now linked from `docs/sibling.md`).
+
+The three pages and six references named in 3.11.0 were not re-measured on the workstation
+root: the `names` links are made at export time from a scan, and no scan was run for this
+change.
+
 ## 3.13.0 (2026-10-08)
 
 Five cases the 3.10.0 rules missed, named at the end of that entry, are now read: what is a

@@ -561,25 +561,53 @@ def records_report(graph):
     return out + [""]
 
 
-def document_targets(text, rel, nodes, root=""):
+def root_file_names(nodes):
+    """The ids of the file nodes at the root whose base name no other file node has."""
+    count = {}
+    for rel, node in nodes.items():
+        if node["kind"] == "file":
+            name = posixpath.basename(rel)
+            count[name] = count.get(name, 0) + 1
+    return {rel for rel, node in nodes.items() if node["kind"] == "file" and "/" not in rel and count[rel] == 1}
+
+
+def document_targets(text, rel, nodes, root="", root_names=None):
     """The scanned files a document names by path, in the order it names them.
 
     A relative path is read as a link in the document would be: against the document's own
     folder first, then against the root, then, for a path of more than one part, by its
     trailing parts (a path written from the folder above the root). A bare file name means
-    a file beside the document and nothing else: the same name elsewhere is another file.
+    a file beside the document; failing that, it is the file of that name at the root when
+    that is the only file of the name, and another file of the name elsewhere is not it.
     An absolute path names a scanned file only when it lies under the scanned root; any
-    other is somewhere else, a path under `~` among them."""
+    other is somewhere else, a path under `~` among them. In an HTML page (.html or .htm)
+    an absolute path that is not under the root is a site path: it is read, without its
+    leading slash, against the page's own folder and then each folder above it, nearest
+    first, and names the first that is a scanned file."""
     here, found = posixpath.dirname(rel), []
+    root_names = root_file_names(nodes) if root_names is None else root_names
+    page = rel.lower().endswith((".html", ".htm"))
     above = re.sub(r"^[A-Za-z]:", "", root.replace("\\", "/")).rstrip("/").lower() + "/"    # a drive letter is not in a token
     for match in _PATH_TOKEN.finditer(text or ""):
         token = match.group().replace("\\", "/")
         parts = [part for part in token.split("/") if part not in ("", ".")]
         if token.startswith("/"):
-            tries = [token[len(above):]] if root and token.lower().startswith(above) else []
+            if root and token.lower().startswith(above):
+                tries = [token[len(above):]]
+            elif page:
+                tries, folder = [], here
+                while True:
+                    tries.append(posixpath.join(folder, token.lstrip("/")))
+                    if not folder:
+                        break
+                    folder = posixpath.dirname(folder)
+            else:
+                tries = []
         else:
             tries = [posixpath.normpath(posixpath.join(here, token))]
             tries += ["/".join(parts[first:]) for first in range(len(parts) - 1)] if len(parts) > 1 else []
+            if len(parts) == 1 and token in root_names:
+                tries.append(token)
         target = next((t for t in tries if t in nodes and nodes[t]["kind"] == "file"), None)
         if target and target != rel and target not in found:
             found.append(target)
@@ -601,8 +629,9 @@ def document_layer(nodes, links, graphs, asset_kinds):
                        and any(asset_kinds.get(concern) == DOCUMENTS for concern in node["concerns"]))
     linked = {(link["source"], link["target"]) for link in links}
     stats = {"documents": len(documents), "naming": 0, "links": 0, "derived": 0, "left_out": 0}
+    root_names = root_file_names(nodes)
     for rel in documents:
-        named = [t for t in document_targets(read_target_text(root, rel) if root else "", rel, nodes, root)
+        named = [t for t in document_targets(read_target_text(root, rel) if root else "", rel, nodes, root, root_names)
                  if (rel, t) not in linked]
         derived = nodes[rel].get("source_class") in DERIVED_CLASSES
         kept = named[:1] if derived else named
