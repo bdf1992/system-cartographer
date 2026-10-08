@@ -1,5 +1,41 @@
 # Releases
 
+## 3.13.0 (2026-10-08)
+
+Five cases the 3.10.0 rules missed, named at the end of that entry, are now read: what is a
+test, and what was not written here.
+
+- **A tests folder in any letter case.** A folder named `test`, `tests`, `__tests__` or `spec`
+  counts as `Tests/Foo.cs` and `src/Spec/helper.rb` do.
+- **A name ending `Test` or `Tests`.** `FooTests.cs` and `FooTest.java` are tests. The suffix
+  counts only after a lower-case letter or a digit, as in C# and Java, so `Latest.cs`,
+  `Attest.cs` and `contest.py` stay own code.
+- **`conftest.py`**, in a tests folder or outside one.
+- **A name ending `-test`, `-tests`, `_test` or `_tests`** before its one extension:
+  `editor-test.cjs`, `editor-tests.js`, `store_tests.py`. `latest.js` and `contests.py` are not.
+- **A `.d.ts` under a `src` folder is the target's own.** Compiler output goes to an out
+  folder and vendored types sit in `types`, `typings` or `node_modules`, so a declaration in
+  `src` is hand-written. A folder named `vendor`, `vendored`, `third_party`, `node_modules`,
+  `dist` or `generated`, or a source class of vendor or generated, still makes it not written
+  here. Only the path is read, not the file.
+
+Measured on the kept run `e52216b2af1a` of the workstation root (21,328 nodes), by building
+`graph_query.py index` from it before and after and comparing the nodes position by position:
+
+- `test` changed on 4 rows in 1 file: `extensions/ws-lens/scripts/editor-test.cjs`.
+- `own` changed on 3 rows in 2 files: `client/src/booth/env.d.ts` and
+  `client/src/booth/parts/assets.d.ts`.
+
+A newly recognised test file gets no join to a subject, because `_TEST_NAME`, which names
+what a test is about, is unchanged. A hand-written `.d.ts` outside a `src` folder still counts
+as not written here.
+
+The name endings (`_test`, `_tests`, `-test`, `-tests`, `Test`, `Tests`) count only for a file
+whose extension is not a data or prose one (`.json`, `.jsonl`, `.md`, `.txt`, `.yaml`, `.yml`,
+`.toml`, `.csv`, `.tsv`, `.xml`, `.html`, `.htm`, `.lock`, `.ini`, `.cfg`, `.log`, `.sov`, in
+any letter case), because a record or note named after a test, such as the 12 task, handoff
+and reception records an earlier form of this rule caught on that root, is not a test.
+
 ## 3.12.0 (2026-10-07)
 
 With a structure declaration the view still drew a `wskernel` plane beside the five layers the
