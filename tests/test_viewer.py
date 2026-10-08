@@ -84,5 +84,132 @@ class Siblings(unittest.TestCase):
         self.assertEqual(run(f"siblingRows(D.clusters, D.planes, {self.i})", self.view), [[self.j, "tests"]])
 
 
+class Routes(unittest.TestCase):
+    """The curves: control points through the centres of the groups a link leaves and enters."""
+    POINTS = [[0, 0], [5, 9], [7, -3], [10, 10]]
+
+    def setUp(self):
+        self.view = gv.build_view(graph(), [], [])
+        cl, nodes = self.view["clusters"], self.view["nodes"]
+        self.node = {row[3]: i for i, row in enumerate(nodes)}
+        node_cluster, node_file = [0] * len(nodes), [-1] * len(nodes)
+        for k, c in enumerate(cl):
+            for i in range(c["start"], c["start"] + c["count"]):
+                node_cluster[i] = k
+        for k, row in enumerate(self.view["files"]):
+            for i in range(row[4], row[4] + row[5]):
+                node_file[i] = k
+        self.cluster_of, self.file_of = node_cluster, node_file
+        self.data = dict(self.view, nodeCluster=node_cluster, nodeFile=node_file, points=self.POINTS)
+
+    def hops(self, a, b):
+        return run(f"hops({self.node[a]}, {self.node[b]}, D.nodes, D.nodeFile, D.nodeCluster, D.files, D.clusters)", self.data)
+
+    def centre_of_file(self, label):
+        row = self.view["files"][self.file_of[self.node[label]]]
+        return [row[1], row[2]]
+
+    def centre_of_cluster(self, label):
+        c = self.view["clusters"][self.cluster_of[self.node[label]]]
+        return [c["x"], c["y"]]
+
+    def at(self, label):
+        return self.view["nodes"][self.node[label]][:2]
+
+    def test_route_returns_a_flat_run_that_starts_and_ends_on_the_ends(self):
+        for steps in (1, 7, 16):
+            out = run(f"route(D.points, 0.85, {steps})", self.data)
+            self.assertEqual(len(out), 2 * (steps + 1))
+            self.assertEqual((out[:2], out[-2:]), (self.POINTS[0], self.POINTS[-1]))
+
+    def test_with_beta_0_every_point_lies_on_the_straight_line(self):
+        out = run("route(D.points, 0, 8)", self.data)
+        for step in range(9):
+            self.assertAlmostEqual(out[2 * step], 10 * step / 8, places=9)
+            self.assertAlmostEqual(out[2 * step + 1], 10 * step / 8, places=9)
+
+    def test_with_two_control_points_it_is_that_line(self):
+        out = run("route([[2, 4], [10, -4]], 0.85, 4)", self.data)
+        for got, want in zip(out, [2, 4, 4, 2, 6, 0, 8, -2, 10, -4]):
+            self.assertAlmostEqual(got, want, places=9)
+
+    def test_with_beta_1_the_middle_of_three_is_a_quarter_a_half_and_a_quarter(self):
+        out = run("route([[0, 0], [5, 9], [10, 2]], 1, 16)", self.data)
+        self.assertAlmostEqual(out[16], 0.25 * 0 + 0.5 * 5 + 0.25 * 10, places=9)
+        self.assertAlmostEqual(out[17], 0.25 * 0 + 0.5 * 9 + 0.25 * 2, places=9)
+
+    def test_beta_pulls_the_curve_towards_the_line(self):
+        full = run("route([[0, 0], [5, 9], [10, 2]], 1, 16)", self.data)
+        part = run("route([[0, 0], [5, 9], [10, 2]], 0.85, 16)", self.data)
+        self.assertAlmostEqual(part[17], 0.25 * 0 + 0.5 * (0.85 * 9 + 0.15 * 1) + 0.25 * 2, places=9)
+        self.assertLess(part[17], full[17])
+
+    def test_hops_between_files_of_two_clusters_are_six_points(self):
+        self.assertNotEqual(self.cluster_of[self.node["store0"]], self.cluster_of[self.node["a0"]])
+        self.assertEqual(self.hops("store0", "a0"),
+                         [self.at("store0"), self.centre_of_file("store0"), self.centre_of_cluster("store0"),
+                          self.centre_of_cluster("a0"), self.centre_of_file("a0"), self.at("a0")])
+
+    def test_hops_between_two_files_of_one_cluster_are_four_points(self):
+        self.assertEqual(self.cluster_of[self.node["a1"]], self.cluster_of[self.node["b0"]])
+        self.assertEqual(self.hops("a1", "b0"),
+                         [self.at("a1"), self.centre_of_file("a1"), self.centre_of_file("b0"), self.at("b0")])
+
+    def test_hops_between_two_definitions_of_one_file_are_the_two_nodes(self):
+        self.assertEqual(self.file_of[self.node["store0"]], self.file_of[self.node["store1"]])
+        self.assertNotEqual(self.file_of[self.node["store0"]], -1)
+        self.assertEqual(self.hops("store0", "store1"), [self.at("store0"), self.at("store1")])
+
+    def test_hops_from_a_cluster_with_no_file_level_skip_the_file(self):
+        self.assertEqual(self.file_of[self.node["test0"]], -1)
+        self.assertEqual(self.hops("test0", "store0"),
+                         [self.at("test0"), self.centre_of_cluster("test0"), self.centre_of_cluster("store0"),
+                          self.centre_of_file("store0"), self.at("store0")])
+        self.assertEqual(self.hops("test0", "test1"), [self.at("test0"), self.at("test1")])
+
+    def test_band_hops_are_four_points_across_planes_and_two_on_one(self):
+        cl, planes = self.view["clusters"], self.view["planes"]
+        store, tests, ops = (self.cluster_of[self.node[label]] for label in ("store0", "test0", "a0"))
+        self.assertNotEqual(cl[store]["plane"], cl[tests]["plane"])
+        self.assertEqual(cl[store]["plane"], cl[ops]["plane"])
+
+        def middle(k):
+            box = planes[cl[k]["plane"]]
+            return [box["x"] + box["w"] / 2, box["y"] + box["h"] / 2]
+
+        start = self.at("store0")
+        self.data["start"] = self.view["nodes"][self.node["store0"]]    # a node row: only its x and y are taken
+        across = run(f"bandHops(D.start, {store}, {tests}, D.clusters, D.planes)", self.data)
+        self.assertEqual(across, [start, middle(store), middle(tests), [cl[tests]["x"], cl[tests]["y"]]])
+        along = run(f"bandHops(D.start, {store}, {ops}, D.clusters, D.planes)", self.data)
+        self.assertEqual(along, [start, [cl[ops]["x"], cl[ops]["y"]]])
+
+
+class Opens(unittest.TestCase):
+    """When a cluster opens: room for itself and, where it has a file level, for its median file.
+    The room threshold is 42 px, or 16 px for what is selected; the median file needs 5 px."""
+
+    def opens(self, radius, median, context):
+        return run(f"clusterOpens({radius}, {json.dumps(median)}, {json.dumps(context)})", {})
+
+    def test_room_for_the_cluster_is_not_enough_when_its_files_are_dots(self):
+        self.assertIs(self.opens(50, 4, False), False)
+        self.assertIs(self.opens(50, 6, False), True)
+        self.assertIs(self.opens(50, 5, False), True)    # at least 5
+        self.assertIs(self.opens(30, 4, True), False)    # what is selected needs 16 px, and its files still need 5
+        self.assertIs(self.opens(30, 6, True), True)
+
+    def test_below_the_room_threshold_it_is_closed_whatever_the_file_size(self):
+        for median in (4, 6, 500):
+            self.assertIs(self.opens(30, median, False), False)
+            self.assertIs(self.opens(42, median, False), False)    # above, not at
+            self.assertIs(self.opens(16, median, True), False)
+
+    def test_a_cluster_with_no_file_level_opens_when_its_room_holds(self):
+        self.assertIs(self.opens(50, None, False), True)
+        self.assertIs(self.opens(30, None, False), False)
+        self.assertIs(self.opens(30, None, True), True)
+
+
 if __name__ == "__main__":
     unittest.main()

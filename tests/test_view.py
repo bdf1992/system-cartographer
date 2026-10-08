@@ -3,6 +3,7 @@
     python -m unittest discover -s tests
 """
 import json
+import math
 import os
 import subprocess
 import sys
@@ -227,6 +228,71 @@ class Claims(View):
         view = self.see([code("stray", "kernel/stray.py", 9)], claims=claim)    # linked to nothing: the leftovers
         self.assertEqual([(c["name"], c["claims"]) for c in view["clusters"] if c["claims"]],
                          [("kernel: other code", ["c9 open (code-9)"])])
+
+
+class Files(unittest.TestCase):
+    """The level between a cluster and its members: one disc per file the cluster holds."""
+
+    def setUp(self):
+        self.view = gv.build_view(graph(), [], [])
+        self.levelled = [c for c in self.view["clusters"] if c["files"][1]]
+
+    def rows(self, cluster):
+        first, number = cluster["files"]
+        return self.view["files"][first:first + number]
+
+    def test_a_code_cluster_of_two_or_more_files_has_a_file_level(self):
+        self.assertEqual(sorted(c["name"] for c in self.levelled), sorted([STORE, OPS]))
+        held = {c["name"]: [row[6] for row in self.rows(c)] for c in self.levelled}
+        self.assertEqual(held[STORE], ["kernel/store.py", "kernel/ids.py"])    # most members first
+        self.assertEqual(held[OPS], ["kernel/ops/alpha.py", "kernel/ops/beta.py", "kernel/ops/gamma.py"])
+
+    def test_the_rows_cover_the_cluster_s_nodes_exactly_and_each_row_is_one_file(self):
+        for c in self.levelled:
+            covered = []
+            for row in self.rows(c):
+                self.assertIs(self.view["clusters"][row[0]], c)
+                run = list(range(row[4], row[4] + row[5]))
+                self.assertTrue(run, row)
+                for i in run:
+                    self.assertEqual(self.view["nodes"][i][5], row[6], self.view["nodes"][i][3])
+                covered += run
+            self.assertEqual(covered, list(range(c["start"], c["start"] + c["count"])), c["name"])
+
+    def test_every_member_lies_inside_its_file_s_disc(self):
+        for c in self.levelled:
+            for row in self.rows(c):
+                for i in range(row[4], row[4] + row[5]):
+                    n = self.view["nodes"][i]
+                    self.assertLessEqual(math.hypot(n[0] - row[1], n[1] - row[2]), row[3], n[3])
+
+    def test_no_two_file_discs_of_a_cluster_overlap(self):
+        for c in self.levelled:
+            rows = self.rows(c)
+            for k, a in enumerate(rows):
+                for b in rows[k + 1:]:
+                    self.assertGreaterEqual(math.hypot(a[1] - b[1], a[2] - b[2]), a[3] + b[3], (a[6], b[6]))
+
+    def test_every_file_disc_lies_inside_its_cluster(self):
+        for c in self.levelled:
+            for row in self.rows(c):
+                self.assertLessEqual(math.hypot(row[1] - c["x"], row[2] - c["y"]) + row[3], c["r"], row[6])
+
+    def test_a_cluster_of_one_file_and_a_cluster_that_is_not_code_have_none(self):
+        by_name = {c["name"]: c for c in self.view["clusters"]}
+        self.assertEqual(by_name["app: other code"]["files"][1], 0)
+        self.assertEqual(by_name["tests: test_store.py"]["files"][1], 0)
+        for c in self.view["clusters"]:
+            if not c["id"].startswith("code-"):
+                self.assertEqual(c["files"][1], 0, c["name"])
+        self.assertEqual(sum(c["files"][1] for c in self.view["clusters"]), len(self.view["files"]))
+
+    def test_file_groups_orders_files_by_members_then_name_and_members_by_degree_then_id(self):
+        rows = [code("z", "b.py", 1), code("y", "b.py", 1), code("x", "a.py", 1), code("w", "a.py", 1), code("v", "c.py", 1)]
+        rows.append({"id": "u", "label": "u", "kind": "name"})
+        groups = gv.file_groups(rows, {"z": 1, "y": 1, "x": 0, "w": 5, "v": 9, "u": 0})
+        self.assertEqual([(name, [n["id"] for n in held]) for name, held in groups],
+                         [("a.py", ["w", "x"]), ("b.py", ["y", "z"]), ("", ["u"]), ("c.py", ["v"])])
 
 
 if __name__ == "__main__":

@@ -51,6 +51,10 @@ const kindOn = [true, true, true, false, false];
 // ---- geometry uploaded once ---------------------------------------------------------------------
 const nodeCluster = new Int32Array(N.length);
 C.forEach((c, i) => { for (let k = c.start; k < c.start + c.count; k++) nodeCluster[k] = i; });
+// The file level: F[i] = [cluster, x, y, r, start, count, source_file]; a node's row in F, or -1.
+const F = G.files || [], nodeFile = new Int32Array(N.length).fill(-1);
+F.forEach((f, i) => { for (let k = f[4]; k < f[4] + f[5]; k++) nodeFile[k] = i; });
+const filesOf = c => c.files ? c.files[1] : 0;         // a view written before the file level has none
 const maxDeg = N.reduce((m, n) => Math.max(m, n[2]), 1);
 const nodeBuf = new Float32Array(N.length * 6);
 N.forEach((n, i) => { const col = PLANE_COLOR[C[nodeCluster[i]].plane], o = i * 6; nodeBuf[o] = n[0]; nodeBuf[o + 1] = n[1]; nodeBuf[o + 2] = 4 + 16 * Math.sqrt(n[2] / maxDeg); nodeBuf[o + 3] = col[0]; nodeBuf[o + 4] = col[1]; nodeBuf[o + 5] = col[2]; });
@@ -89,14 +93,29 @@ const view = { x: 0, y: 0, k: 1 }, goal = { x: 0, y: 0, k: 1, on: false }, mouse
 let selNode = null, selCluster = null, hoverCluster = null, hoverNode = null, context = new Set(), related = new Set(), siblings = new Set();
 const toScreen = (x, y) => [(x - view.x) * view.k + W / 2, (y - view.y) * view.k + H / 2];
 const toWorld = (sx, sy) => [(sx - W / 2) / view.k + view.x, (sy - H / 2) / view.k + view.y];
-// A cluster shows its members when there is room to read them (its radius on screen) and it is
-// of interest: under the pointer, or part of what is selected and what that links to most.
-const ROOM_PX = 42, NEAR_PX = 380;
+// Three levels, each opened by room on screen alone. A cluster on screen is open when
+// clusterOpens (in the pure block below) says so: room for itself and, where it has a file level,
+// for its median file. A file disc of an open cluster is open when its radius on screen is above
+// FILE_ROOM_PX. The pointer plays no part, so nothing opens or closes as one looks.
+const FILE_ROOM_PX = 26, BETA = 0.85, STEPS = 16;
+// Each cluster's median file radius in world units (the upper middle of an even number), or null.
+const medianFile = C.map(c => { if (!filesOf(c)) return null; const r = F.slice(c.files[0], c.files[0] + c.files[1]).map(f => f[3]).sort((a, b) => a - b); return r[r.length >> 1]; });
 function open(c, i) {
   const [sx, sy] = toScreen(c.x, c.y), r = c.r * view.k;
   if (sx < -r || sy < -r || sx > W + r || sy > H + r) return false;
-  if (context.has(i)) return r > 16;
-  return r > ROOM_PX && Math.hypot(sx - mouse.sx, sy - mouse.sy) < NEAR_PX + r;
+  return clusterOpens(r, medianFile[i] === null ? null : medianFile[i] * view.k, context.has(i));
+}
+const fileOpen = f => f[3] * view.k > FILE_ROOM_PX;
+// A node is on show when its cluster is open and has no file level, or its file is open.
+const onShow = j => open(C[nodeCluster[j]], nodeCluster[j]) && (nodeFile[j] < 0 || fileOpen(F[nodeFile[j]]));
+// A link's curve is in world units and never changes: it is worked out once, when first drawn.
+const curves = new Map();
+function curveOf(ei) {
+  if (!curves.has(ei)) curves.set(ei, route(hops(E[ei][0], E[ei][1], N, nodeFile, nodeCluster, F, C), BETA, STEPS));
+  return curves.get(ei);
+}
+function polyline(out, pts, col, al) {
+  for (let k = 0; k + 3 < pts.length; k += 2) out.push(pts[k], pts[k + 1], 0, col[0], col[1], col[2], al, pts[k + 2], pts[k + 3], 0, col[0], col[1], col[2], al);
 }
 function fly(x, y, k) { goal.x = x; goal.y = y; goal.k = Math.max(0.005, Math.min(10, k)); goal.on = true; dirty = true; }
 function fit() {
@@ -127,24 +146,45 @@ function draw() {
   // merge into one band from the node, a cluster's into one band from its centre.
   const from = selNode !== null && hoverCluster === null ? N[selNode] : lit !== null ? [C[lit].x, C[lit].y] : null;
   const ties = selNode !== null && hoverCluster === null ? nodeTies(selNode) : lit !== null ? clusterLinks[lit].slice(0, TIES) : [];
-  const most = ties.length ? ties[0][1] : 1;
-  for (const [o, n] of ties) { const w = Math.sqrt(n / most); band(from[0], from[1], C[o].x, C[o].y, 1.2 + 6 * w, 0.93, 0.94, 0.92, 0.22 + 0.45 * w); }
+  const most = ties.length ? ties[0][1] : 1, fromCluster = selNode !== null && hoverCluster === null ? nodeCluster[selNode] : lit;
+  // A band to a cluster on the same plane is straight. One to another plane is routed through the
+  // centres of the two planes, one quad per segment, so bands that cross planes run together.
+  for (const [o, n] of ties) {
+    const w = Math.sqrt(n / most), pts = C[o].plane === C[fromCluster].plane ? [from[0], from[1], C[o].x, C[o].y] : route(bandHops(from, fromCluster, o, C, P), BETA, STEPS);
+    for (let k = 0; k + 3 < pts.length; k += 2) band(pts[k], pts[k + 1], pts[k + 2], pts[k + 3], 1.2 + 6 * w, 0.93, 0.94, 0.92, 0.22 + 0.45 * w);
+  }
   use(pLine, bufDyn, 28, 1, 1); dyn(agg); gl.drawArrays(gl.LINES, 0, agg.length / 7);
   dyn(bands); gl.drawArrays(gl.TRIANGLES, 0, bands.length / 7);
 
-  // Inside an open cluster every link is drawn, coloured by relation, faint when inferred.
+  // Inside an open cluster a link is drawn by the level its ends are shown at, coloured by relation
+  // and faint when inferred: straight inside one open file (or a cluster with no file level), a
+  // curve through the two file centres between two open files. Where a file is closed its links
+  // are not drawn singly: each pair of files gets one line between their centres, stronger for more.
   const lines = [], strong = [];
   const selLinks = selNode !== null ? new Set(edgesOf.get(selNode) || []) : null;
-  for (const ci of opened) for (const ei of edgesBy[ci]) {
-    const e = E[ei]; if (!kindOn[e[2]] || nodeCluster[e[1]] !== ci || (selLinks && selLinks.has(ei))) continue;
-    const a = N[e[0]], b = N[e[1]], col = KIND_COLOR[e[2]], al = (e[3] ? 0.10 : 0.28) * (selLinks ? 0.4 : 1);
-    lines.push(a[0], a[1], 0, col[0], col[1], col[2], al, b[0], b[1], 0, col[0], col[1], col[2], al);
+  const shown = j => isOpen.has(nodeCluster[j]) && (nodeFile[j] < 0 || fileOpen(F[nodeFile[j]]));
+  for (const ci of opened) {
+    const levelled = filesOf(C[ci]) > 0, pairs = new Map();
+    for (const ei of edgesBy[ci]) {
+      const e = E[ei]; if (!kindOn[e[2]] || nodeCluster[e[1]] !== ci) continue;
+      const fa = nodeFile[e[0]], fb = nodeFile[e[1]], bothOpen = !levelled || (fileOpen(F[fa]) && fileOpen(F[fb]));
+      if (!bothOpen) { if (fa !== fb) { const key = fa < fb ? fa * F.length + fb : fb * F.length + fa; pairs.set(key, (pairs.get(key) || 0) + 1); } continue; }
+      if (selLinks && selLinks.has(ei)) continue;
+      const col = KIND_COLOR[e[2]], al = (e[3] ? 0.10 : 0.28) * (selLinks ? 0.4 : 1);
+      if (fa === fb) { const a = N[e[0]], b = N[e[1]]; lines.push(a[0], a[1], 0, col[0], col[1], col[2], al, b[0], b[1], 0, col[0], col[1], col[2], al); }
+      else polyline(lines, curveOf(ei), col, al);
+    }
+    let top = 0; for (const n of pairs.values()) top = Math.max(top, n);
+    for (const [key, n] of pairs) {
+      const a = F[Math.floor(key / F.length)], b = F[key % F.length], al = 0.10 + 0.4 * Math.log(1 + n) / Math.log(1 + top);
+      lines.push(a[1], a[2], 0, 0.8, 0.83, 0.86, al, b[1], b[2], 0, 0.8, 0.83, 0.86, al);
+    }
   }
-  // The selected node's links to nodes that are on show, one by one.
+  // The selected node's links to nodes that are on show, one by one, each along its route.
   if (selLinks) for (const ei of selLinks) {
-    const e = E[ei], other = e[0] === selNode ? e[1] : e[0], s = N[selNode], col = KIND_COLOR[e[2]];
-    if (!isOpen.has(nodeCluster[other])) continue;
-    strong.push(s[0], s[1], 0, col[0], col[1], col[2], 0.9, N[other][0], N[other][1], 0, col[0], col[1], col[2], 0.9);
+    const e = E[ei], other = e[0] === selNode ? e[1] : e[0];
+    if (!shown(other)) continue;
+    polyline(strong, curveOf(ei), KIND_COLOR[e[2]], 0.9);
   }
   dyn(lines); gl.drawArrays(gl.LINES, 0, lines.length / 7);
   dyn(strong); gl.drawArrays(gl.LINES, 0, strong.length / 7);
@@ -158,21 +198,32 @@ function draw() {
     discs.push(c.x, c.y, size, col[0], col[1], col[2], al);
     if (c.claims.length) rings.push(c.x, c.y, size + 10, 0.98, 0.42, 0.38, 0.95);
   }
+  // an open cluster's closed files: one disc each, as large as the file, in the plane's colour
+  let closedFiles = 0; const runs = [];                  // runs: the [start, count] of members to draw
+  for (const ci of opened) {
+    const c = C[ci], col = PLANE_COLOR[c.plane];
+    if (!filesOf(c)) { runs.push(c.start, c.count); continue; }
+    for (let k = c.files[0]; k < c.files[0] + c.files[1]; k++) {
+      const f = F[k];
+      if (fileOpen(f)) { runs.push(f[4], f[5]); rings.push(f[1], f[2], f[3] * 2 * view.k, col[0], col[1], col[2], 0.18); }   // where the file ends
+      else { discs.push(f[1], f[2], Math.max(4, f[3] * 2 * view.k), col[0], col[1], col[2], 0.42); closedFiles++; }
+    }
+  }
   use(pPoint, bufDyn, 28, 1, DPR); dyn(discs); gl.drawArrays(gl.POINTS, 0, discs.length / 7);
   for (const ci of opened) { const c = C[ci], col = PLANE_COLOR[c.plane]; rings.push(c.x, c.y, c.r * 2.1 * view.k, col[0], col[1], col[2], c.claims.length ? 0 : 0.35); if (c.claims.length) rings.push(c.x, c.y, c.r * 2.1 * view.k, 0.98, 0.42, 0.38, 0.9); }
   use(pPoint, bufDyn, 28, 1, DPR, 0.012); dyn(rings); gl.drawArrays(gl.POINTS, 0, rings.length / 7);
 
-  // open clusters: their members, straight from the buffer uploaded at start
+  // open clusters with no file level, and open files: their members, straight from the buffer uploaded at start
   use(pPoint, bufNodes, 24, selNode !== null ? 0.5 : 0.95, DPR * Math.max(0.55, Math.min(2.4, view.k * 1.5)));
   gl.vertexAttrib4f(gl.getAttribLocation(pPoint, "a_col"), 1, 1, 1, 1);
-  let shown = 0; for (const ci of opened) { gl.drawArrays(gl.POINTS, C[ci].start, C[ci].count); shown += C[ci].count; }
-  if (selNode !== null) {                                // the selection and its neighbours at full strength
-    const hi = []; for (const j of [selNode, ...neighbours(selNode)]) if (isOpen.has(nodeCluster[j])) { const o = j * 6; hi.push(nodeBuf[o], nodeBuf[o + 1], nodeBuf[o + 2] * (j === selNode ? 1.5 : 1.1), nodeBuf[o + 3], nodeBuf[o + 4], nodeBuf[o + 5], 1); }
+  let drawn = 0; for (let k = 0; k < runs.length; k += 2) { gl.drawArrays(gl.POINTS, runs[k], runs[k + 1]); drawn += runs[k + 1]; }
+  if (selNode !== null) {                                // the selection, and its neighbours on show, at full strength
+    const hi = []; for (const j of [selNode, ...neighbours(selNode)]) if (j === selNode ? isOpen.has(nodeCluster[j]) : shown(j)) { const o = j * 6; hi.push(nodeBuf[o], nodeBuf[o + 1], nodeBuf[o + 2] * (j === selNode ? 1.5 : 1.1), nodeBuf[o + 3], nodeBuf[o + 4], nodeBuf[o + 5], 1); }
     use(pPoint, bufDyn, 28, 1, DPR * Math.max(0.55, Math.min(2.4, view.k * 1.5))); dyn(hi); gl.drawArrays(gl.POINTS, 0, hi.length / 7);
   }
   drawLabels(opened, closed, lit);
   const ms = performance.now() - t0;
-  window.__frame = { ms: +ms.toFixed(2), nodes: shown, open: opened.length, closed: closed.length, links: ((lines.length + agg.length + strong.length) / 14 + bands.length / 42) | 0 };
+  window.__frame = { ms: +ms.toFixed(2), nodes: drawn, open: opened.length, closed: closed.length, files: closedFiles, links: ((lines.length + agg.length + strong.length) / 14 + bands.length / 42) | 0 };
   document.getElementById("stat").textContent = `${N.length.toLocaleString()} nodes  ${E.length.toLocaleString()} links  ${ms.toFixed(1)} ms`;
 }
 const nbCache = new Map();
@@ -199,11 +250,37 @@ function drawLabels(opened, closed, lit) {
     placed.push(box); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(21,23,26,0.92)"; ctx.strokeText(text, sx, sy); ctx.fillStyle = color; ctx.fillText(text, sx, sy);
   }
   const node = "12px ui-sans-serif, system-ui, sans-serif", head = "600 12px ui-sans-serif, system-ui, sans-serif";
-  if (selNode !== null) { const n = N[selNode], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 16, head, "#fff"); for (const j of neighbours(selNode).slice(0, 60)) { const m = N[j], [x, y] = toScreen(m[0], m[1]); if (open(C[nodeCluster[j]], nodeCluster[j])) put(m[3], x, y - 13, node, "#e9ebe6"); } }
-  if (lit !== null && lit !== undefined) { const c = C[lit], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy - c.r * view.k - 12, head, "#fff"); }
-  for (const ci of opened) { const c = C[ci], limit = Math.min(c.count, 36); for (let k = c.start; k < c.start + limit; k++) { const n = N[k], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 13, node, selNode !== null ? "#8b939b" : "#d6dad5"); } }
+  if (selNode !== null) { const n = N[selNode], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 16, head, "#fff"); for (const j of neighbours(selNode).slice(0, 60)) { const m = N[j], [x, y] = toScreen(m[0], m[1]); if (onShow(j)) put(m[3], x, y - 13, node, "#e9ebe6"); } }
+  if (lit !== null && lit !== undefined) { const c = C[lit], [sx, sy] = toScreen(c.x, c.y), isOpen = opened.includes(lit); put(clusterText(c), isOpen ? Math.max(40, Math.min(W - 40, sx)) : sx, isOpen ? Math.max(14, sy - c.r * view.k - 12) : sy - c.r * view.k - 12, head, "#fff"); }
+  // An open cluster keeps its name, at the top of its ring and held on screen when the ring's top is not.
   const quiet = selNode !== null || selCluster !== null;   // with something selected, only what it ties to keeps a bright name
   const kept = ci => related.has(ci) || siblings.has(ci);
+  for (const ci of opened) {
+    if (ci === lit) continue;
+    const c = C[ci], [sx, sy] = toScreen(c.x, c.y);
+    put(clusterText(c), Math.max(40, Math.min(W - 40, sx)), Math.max(14, sy - c.r * view.k - 12), head, !quiet ? "#c3c8cd" : kept(ci) ? "#eef0ec" : "#8b939b");
+  }
+  // An open file is named above its ring, before its members, so a member can be traced to its file.
+  const small = "11px ui-sans-serif, system-ui, sans-serif";
+  for (const ci of opened) {
+    const c = C[ci];
+    for (let k = c.files ? c.files[0] : 0; k < (c.files ? c.files[0] + c.files[1] : 0); k++) {
+      const f = F[k]; if (!fileOpen(f)) continue;
+      const [sx, sy] = toScreen(f[1], f[2]); put(f[6].split("/").pop(), sx, sy - f[3] * view.k - 8, small, selNode !== null ? "#8b939b" : "#c3c8cd");
+    }
+  }
+  // Members are named busiest first: 36 of a cluster with no file level, 12 of each open file.
+  // A closed file with room for a name gets its base name and how many it holds.
+  const members = (start, limit) => { for (let k = start; k < start + limit; k++) { const n = N[k], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 13, node, selNode !== null ? "#8b939b" : "#d6dad5"); } };
+  for (const ci of opened) {
+    const c = C[ci];
+    if (!filesOf(c)) { members(c.start, Math.min(c.count, 36)); continue; }
+    for (let k = c.files[0]; k < c.files[0] + c.files[1]; k++) {
+      const f = F[k];
+      if (fileOpen(f)) members(f[4], Math.min(f[5], 12));
+      else if (f[3] * view.k > 11) { const [sx, sy] = toScreen(f[1], f[2]); put(`${f[6].split("/").pop()} ${f[5]}`, sx, sy, "11px ui-sans-serif, system-ui, sans-serif", selNode !== null ? "#8b939b" : "#c3c8cd"); }
+    }
+  }
   const rank = ci => (kept(ci) ? 1e7 : 0) + C[ci].count;
   for (const ci of closed.filter(i => C[i].r * view.k > 11).sort((a, b) => rank(b) - rank(a))) { const c = C[ci], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy, "11px ui-sans-serif, system-ui, sans-serif", !quiet ? "#c3c8cd" : kept(ci) ? "#eef0ec" : "#565d64"); }
 }
@@ -222,6 +299,55 @@ function siblingsOf(clusters, ci) {
 // One row per sibling: its index and the name of the plane it is on.
 function siblingRows(clusters, planes, ci) {
   return siblingsOf(clusters, ci).map(i => [i, planes[clusters[i].plane].name]);
+}
+// Whether a cluster on screen opens. radiusPx is its radius on screen: it must be above ROOM_PX,
+// or above CONTEXT_ROOM_PX when the cluster is what is selected (inContext). medianFilePx is the
+// radius on screen of its median file disc, and must be at least FILE_DOT_PX: a cluster whose files
+// would be dots stays one disc with its name. medianFilePx is null for a cluster with no file
+// level, which opens on its own room alone.
+const ROOM_PX = 42, CONTEXT_ROOM_PX = 16, FILE_DOT_PX = 5;
+function clusterOpens(radiusPx, medianFilePx, inContext) {
+  if (!(radiusPx > (inContext ? CONTEXT_ROOM_PX : ROOM_PX))) return false;
+  return medianFilePx === null || medianFilePx >= FILE_DOT_PX;
+}
+// A curve through control points, after Holten's hierarchical edge bundling (IEEE InfoVis 2006).
+// Each inner control point is first straightened: beta times itself plus 1 - beta times the point
+// at the same fraction along the straight line from first to last. The Bezier curve over the moved
+// points is then evaluated by De Casteljau at steps + 1 even values of t. Returns x, y, x, y, ...
+function route(points, beta, steps) {
+  const last = points.length - 1, a = points[0], b = points[last];
+  const moved = points.map((p, i) => {
+    if (i === 0 || i === last) return [p[0], p[1]];
+    const f = i / last;
+    return [beta * p[0] + (1 - beta) * (a[0] + (b[0] - a[0]) * f), beta * p[1] + (1 - beta) * (a[1] + (b[1] - a[1]) * f)];
+  });
+  const out = [];
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps, xs = moved.map(p => p[0]), ys = moved.map(p => p[1]);
+    for (let n = last; n > 0; n--) for (let i = 0; i < n; i++) { xs[i] = (1 - t) * xs[i] + t * xs[i + 1]; ys[i] = (1 - t) * ys[i] + t * ys[i + 1]; }
+    out.push(xs[0], ys[0]);
+  }
+  return out;
+}
+// The control points of a link between two nodes: the centres of the groups it leaves, then of
+// those it enters. nodeFile holds each node's row in files, or -1 where its cluster has no file level.
+// Two members of one file have no group to leave or enter: the two nodes only, a straight line.
+function hops(a, b, nodes, nodeFile, nodeCluster, files, clusters) {
+  const out = [[nodes[a][0], nodes[a][1]]], fa = nodeFile[a], fb = nodeFile[b], ca = nodeCluster[a], cb = nodeCluster[b];
+  if (fa >= 0 && fa === fb) return [out[0], [nodes[b][0], nodes[b][1]]];
+  if (fa >= 0) out.push([files[fa][1], files[fa][2]]);
+  if (ca !== cb) out.push([clusters[ca].x, clusters[ca].y], [clusters[cb].x, clusters[cb].y]);
+  if (fb >= 0) out.push([files[fb][1], files[fb][2]]);
+  out.push([nodes[b][0], nodes[b][1]]);
+  return out;
+}
+// The control points of a band from a point in cluster ca to cluster cb: through the centres of
+// the two planes' boxes when the clusters are on different planes.
+function bandHops(from, ca, cb, clusters, planes) {
+  const out = [[from[0], from[1]]], pa = clusters[ca].plane, pb = clusters[cb].plane;
+  if (pa !== pb) for (const p of [planes[pa], planes[pb]]) out.push([p.x + p.w / 2, p.y + p.h / 2]);
+  out.push([clusters[cb].x, clusters[cb].y]);
+  return out;
 }
 // ---- end pure ----
 
@@ -273,7 +399,13 @@ function resize() { DPR = window.devicePixelRatio || 1; W = innerWidth; H = inne
 addEventListener("resize", resize);
 function nodeAt(sx, sy) {
   const [wx, wy] = toWorld(sx, sy); let best = null, bestD = 12 / view.k;
-  C.forEach((c, i) => { if (Math.hypot(c.x - wx, c.y - wy) > c.r + 24 || !open(c, i)) return; for (let k = c.start; k < c.start + c.count; k++) { const d = Math.hypot(N[k][0] - wx, N[k][1] - wy); if (d < bestD) { bestD = d; best = k; } } });
+  const scan = (start, count) => { for (let k = start; k < start + count; k++) { const d = Math.hypot(N[k][0] - wx, N[k][1] - wy); if (d < bestD) { bestD = d; best = k; } } };
+  // Only what is drawn can be pointed at: members of an open cluster with no file level, or of an open file.
+  C.forEach((c, i) => {
+    if (Math.hypot(c.x - wx, c.y - wy) > c.r + 24 || !open(c, i)) return;
+    if (!filesOf(c)) return scan(c.start, c.count);
+    for (let k = c.files[0]; k < c.files[0] + c.files[1]; k++) if (fileOpen(F[k])) scan(F[k][4], F[k][5]);
+  });
   return best;
 }
 const clusterAt = (sx, sy) => { const [wx, wy] = toWorld(sx, sy), i = C.findIndex(c => Math.hypot(c.x - wx, c.y - wy) < c.r); return i < 0 ? null : i; };

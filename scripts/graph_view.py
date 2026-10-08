@@ -23,17 +23,33 @@ What is computed here, once, so that opening the view does no layout work:
   position  planes are packed into rows; inside a plane, clusters start where a spring layout
             of the links between them puts them (when networkx is importable) and are then
             placed largest first, each at the nearest free spot, so none overlap; members sit
-            on a disc around their cluster, most connected at the centre.
+            on a disc around their cluster, most connected at the centre. A parsed-code
+            cluster that holds two or more files has a file level between: each file is a
+            disc sized for its members, the discs are packed from the cluster's centre,
+            largest first, and a file's members sit on a disc around their file. Such a
+            cluster is as large as its packed files make it. The view carries the level as
+            `files`, one row `[cluster index, x, y, r, start, count, source_file]` per file
+            disc in node order, `start` and `count` being a run of `nodes`; each cluster
+            has `files: [first row, number of rows]`, the number 0 where there is no file
+            level.
 
 How the view draws it (references/viewer/index.html):
 
-  one rule for detail   a cluster shows its members when there is room to read them on
-                        screen and it is of interest: under the pointer, or selected.
-                        Everything else is one disc with a count. The number of things drawn
-                        therefore follows the screen, not the size of the graph.
-  links                 inside an open cluster, each link, coloured by relation and faint when
-                        inferred. Between clusters, one line per pair; for what is selected,
-                        its twelve strongest connections as bands, wider for more links.
+  one rule for detail   three levels, each opened by room on screen alone: a cluster opens
+                        into its files when its radius on screen is large enough to read
+                        them, and a file into its definitions the same way. A cluster with
+                        no file level opens straight into its members. Everything closed is
+                        one disc with a count. The pointer plays no part, so nothing changes
+                        as one looks. The number of things drawn follows the screen, not
+                        the size of the graph.
+  links                 inside an open file, each link, straight, coloured by relation and
+                        faint when inferred. Between two open files of one cluster, each
+                        link as a curve routed through the centres of the two files
+                        (hierarchical edge bundling, Holten 2006, straightened by 0.85).
+                        Where a file is closed, one line per pair of files. Between
+                        clusters, one line per pair; for what is selected, its twelve
+                        strongest connections as bands, wider for more links, routed
+                        through the centres of the planes they leave and enter.
   colour                the plane a thing is on.
   selection             opens only itself, keeps what it ties to bright and named, quiets the
                         rest, and lists what uses it and what it uses.
@@ -53,6 +69,8 @@ import graph_export as ge  # noqa: E402
 
 SPACING = 26.0            # world units between two member nodes
 CLUSTER_GAP = 28.0
+FILE_PAD = 10.0           # around a file's members, inside its disc
+FILE_GAP = 8.0            # between two file discs of one cluster
 PLANE_GAP = 260.0
 SMALL_TYPE = 5            # records of a type before the type is a cluster of its own
 SMALL_PART = 5            # members of a community on one plane before that part is a cluster of its own
@@ -127,19 +145,41 @@ def spring_positions(cluster_ids, between, side):
     return {c: [pos[c][0] * side / 2, pos[c][1] * side / 2] for c in cluster_ids}
 
 
-def place_without_overlap(points, radius):
-    """Largest first, each cluster takes the free spot nearest where it wanted to be, found by
-    walking a spiral outward. Returns nothing; `points` is changed in place."""
+def place_without_overlap(points, radius, gap=CLUSTER_GAP):
+    """Largest first, each disc takes the free spot nearest where it wanted to be, found by
+    walking a spiral outward, `gap` clear of every disc placed before it. Returns nothing;
+    `points` is changed in place."""
     placed = []
     for c in sorted(points, key=lambda c: (-radius[c], c)):
         ox, oy = points[c]
         step, angle, dist, x, y = radius[c] * 0.35 + 6, 0.0, 0.0, ox, oy
-        while any(math.hypot(x - px, y - py) < radius[c] + pr + CLUSTER_GAP for px, py, pr in placed):
+        while any(math.hypot(x - px, y - py) < radius[c] + pr + gap for px, py, pr in placed):
             angle += 0.6
             dist += step * 0.6 / (2 * math.pi)
             x, y = ox + dist * math.cos(angle), oy + dist * math.sin(angle)
         points[c] = [x, y]
         placed.append((x, y, radius[c]))
+
+
+def file_groups(rows, degree):
+    """One cluster's rows as a list of (source_file, members): files with the most members
+    first, then by name; members most connected first, then by id. Rows with no source_file
+    are held under the empty name."""
+    held = {}
+    for n in rows:
+        held.setdefault(n.get("source_file") or "", []).append(n)
+    return [(name, sorted(held[name], key=lambda n: (-degree[n["id"]], n["id"])))
+            for name in sorted(held, key=lambda f: (-len(held[f]), f))]
+
+
+def file_discs(groups):
+    """Where each file of one cluster sits, as offsets from the cluster's centre, and how large
+    the cluster then is: (name -> [x, y], name -> radius, the cluster's radius). A file is a
+    disc with room for its members; the discs are packed from the centre, largest first."""
+    radius = {name: SPACING * 0.6 * math.sqrt(len(rows)) + FILE_PAD for name, rows in groups}
+    points = {name: [0.0, 0.0] for name, _ in groups}
+    place_without_overlap(points, radius, FILE_GAP)
+    return points, radius, max(math.hypot(*points[name]) + radius[name] for name in points) + 12
 
 
 def tally(names):
@@ -280,6 +320,15 @@ def build_view(graph, layers, registrations):
     order = [p for p in FIRST_PLANES + list(reversed(layers)) + code_planes + asset_planes + LAST_PLANES if p in present]
 
     radius = {cid: SPACING * math.sqrt(len(rows)) * 0.62 + 12 for cid, rows in members.items()}
+    # A parsed-code cluster that holds two or more files is laid out by file, and is as large as
+    # its packed file discs make it. On every other plane a member already is a file.
+    by_file, discs = {}, {}
+    for cid, rows in members.items():
+        groups = file_groups(rows, degree) if cid.startswith("code-") else []
+        if len(groups) >= 2:
+            by_file[cid] = groups
+            discs[cid] = file_discs(groups)
+            radius[cid] = discs[cid][2]
     centers, boxes = {}, {}
     for z, name in enumerate(order):
         cids = sorted(c for c, p in cluster_plane.items() if p == name)
@@ -320,28 +369,39 @@ def build_view(graph, layers, registrations):
     names = distinct_names({cid: cluster_name(cid, rows) if cid.startswith("code-") else cid for cid, rows in members.items()},
                            cluster_plane, {cid: str(next((n for n in rows if n["kind"] != "file"), rows[0])["label"])
                                            for cid, rows in ranked.items()})
-    out_nodes, node_index, clusters = [], {}, []
+    out_nodes, node_index, clusters, files = [], {}, [], []
+
+    def sunflower(rows, x, y):                          # a disc of members: the busiest at the centre
+        for i, n in enumerate(rows):
+            r, t = SPACING * 0.6 * math.sqrt(i), i * 2.399963
+            node_index[n["id"]] = len(out_nodes)
+            out_nodes.append([round(x + r * math.cos(t), 1), round(y + r * math.sin(t), 1), degree[n["id"]],
+                              str(n["label"])[:48], n["kind"], n.get("source_file") or "",
+                              sum((n.get("lint") or {}).values())])
+
     for cid in cluster_ids:
         rows = ranked[cid]
         cx, cy = centers[cid]
-        start = len(out_nodes)
-        for i, n in enumerate(rows):                    # a sunflower disc: the busiest member at the centre
-            r, t = SPACING * 0.6 * math.sqrt(i), i * 2.399963
-            node_index[n["id"]] = len(out_nodes)
-            out_nodes.append([round(cx + r * math.cos(t), 1), round(cy + r * math.sin(t), 1), degree[n["id"]],
-                              str(n["label"])[:48], n["kind"], n.get("source_file") or "",
-                              sum((n.get("lint") or {}).values())])
+        start, first = len(out_nodes), len(files)
+        if cid in by_file:
+            points, disc, _ = discs[cid]
+            for name, held in by_file[cid]:
+                fx, fy = round(cx + points[name][0], 1), round(cy + points[name][1], 1)
+                files.append([len(clusters), fx, fy, round(disc[name], 1), len(out_nodes), len(held), name])
+                sunflower(held, fx, fy)
+        else:
+            sunflower(rows, cx, cy)
         community = cid.split("@")[0] if cid.startswith("code-") and not cid.startswith("code-other@") else None
         clusters.append({"id": cid, "name": names[cid], "community": community, "plane": order.index(cluster_plane[cid]),
                          "x": round(cx, 1), "y": round(cy, 1), "r": round(radius[cid], 1), "start": start, "count": len(rows),
-                         "claims": shown_claims.get(cid, [])})
+                         "files": [first, len(files) - first], "claims": shown_claims.get(cid, [])})
     unplaced = {}    # plane -> the files whose code is on it, whether or not the file itself is a node
     for n in nodes:
         if plane[n["id"]].endswith(NO_LAYER) and n.get("source_file"):
             unplaced.setdefault(plane[n["id"]], set()).add(n["source_file"])
     return {
         "unplaced": {name: sorted(files) for name, files in sorted(unplaced.items())},
-        "planes": [boxes[p] for p in order], "clusters": clusters, "nodes": out_nodes, "kinds": KINDS,
+        "planes": [boxes[p] for p in order], "clusters": clusters, "files": files, "nodes": out_nodes, "kinds": KINDS,
         "edges": [[node_index[l["source"]], node_index[l["target"]], KIND.get(l["relation"], 4),
                    1 if l["confidence"] == "INFERRED" else 0] for l in links],
         "clusterEdges": [[cindex[a], cindex[b], count] for (a, b), count in between.items()],
