@@ -93,15 +93,17 @@ const view = { x: 0, y: 0, k: 1 }, goal = { x: 0, y: 0, k: 1, on: false }, mouse
 let selNode = null, selCluster = null, hoverCluster = null, hoverNode = null, context = new Set(), related = new Set(), siblings = new Set();
 const toScreen = (x, y) => [(x - view.x) * view.k + W / 2, (y - view.y) * view.k + H / 2];
 const toWorld = (sx, sy) => [(sx - W / 2) / view.k + view.x, (sy - H / 2) / view.k + view.y];
-// Three levels, each opened by room on screen alone. A cluster on screen is open when its radius
-// on screen is above ROOM_PX, or above 16 when it is what is selected; a file disc of an open
-// cluster is open when its radius on screen is above FILE_ROOM_PX. The pointer plays no part, so
-// nothing opens or closes as one looks.
-const ROOM_PX = 42, FILE_ROOM_PX = 26, BETA = 0.85, STEPS = 16;
+// Three levels, each opened by room on screen alone. A cluster on screen is open when
+// clusterOpens (in the pure block below) says so: room for itself and, where it has a file level,
+// for its median file. A file disc of an open cluster is open when its radius on screen is above
+// FILE_ROOM_PX. The pointer plays no part, so nothing opens or closes as one looks.
+const FILE_ROOM_PX = 26, BETA = 0.85, STEPS = 16;
+// Each cluster's median file radius in world units (the upper middle of an even number), or null.
+const medianFile = C.map(c => { if (!filesOf(c)) return null; const r = F.slice(c.files[0], c.files[0] + c.files[1]).map(f => f[3]).sort((a, b) => a - b); return r[r.length >> 1]; });
 function open(c, i) {
   const [sx, sy] = toScreen(c.x, c.y), r = c.r * view.k;
   if (sx < -r || sy < -r || sx > W + r || sy > H + r) return false;
-  return r > (context.has(i) ? 16 : ROOM_PX);
+  return clusterOpens(r, medianFile[i] === null ? null : medianFile[i] * view.k, context.has(i));
 }
 const fileOpen = f => f[3] * view.k > FILE_ROOM_PX;
 // A node is on show when its cluster is open and has no file level, or its file is open.
@@ -203,7 +205,7 @@ function draw() {
     if (!filesOf(c)) { runs.push(c.start, c.count); continue; }
     for (let k = c.files[0]; k < c.files[0] + c.files[1]; k++) {
       const f = F[k];
-      if (fileOpen(f)) runs.push(f[4], f[5]);
+      if (fileOpen(f)) { runs.push(f[4], f[5]); rings.push(f[1], f[2], f[3] * 2 * view.k, col[0], col[1], col[2], 0.18); }   // where the file ends
       else { discs.push(f[1], f[2], Math.max(4, f[3] * 2 * view.k), col[0], col[1], col[2], 0.42); closedFiles++; }
     }
   }
@@ -249,7 +251,24 @@ function drawLabels(opened, closed, lit) {
   }
   const node = "12px ui-sans-serif, system-ui, sans-serif", head = "600 12px ui-sans-serif, system-ui, sans-serif";
   if (selNode !== null) { const n = N[selNode], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 16, head, "#fff"); for (const j of neighbours(selNode).slice(0, 60)) { const m = N[j], [x, y] = toScreen(m[0], m[1]); if (onShow(j)) put(m[3], x, y - 13, node, "#e9ebe6"); } }
-  if (lit !== null && lit !== undefined) { const c = C[lit], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy - c.r * view.k - 12, head, "#fff"); }
+  if (lit !== null && lit !== undefined) { const c = C[lit], [sx, sy] = toScreen(c.x, c.y), isOpen = opened.includes(lit); put(clusterText(c), isOpen ? Math.max(40, Math.min(W - 40, sx)) : sx, isOpen ? Math.max(14, sy - c.r * view.k - 12) : sy - c.r * view.k - 12, head, "#fff"); }
+  // An open cluster keeps its name, at the top of its ring and held on screen when the ring's top is not.
+  const quiet = selNode !== null || selCluster !== null;   // with something selected, only what it ties to keeps a bright name
+  const kept = ci => related.has(ci) || siblings.has(ci);
+  for (const ci of opened) {
+    if (ci === lit) continue;
+    const c = C[ci], [sx, sy] = toScreen(c.x, c.y);
+    put(clusterText(c), Math.max(40, Math.min(W - 40, sx)), Math.max(14, sy - c.r * view.k - 12), head, !quiet ? "#c3c8cd" : kept(ci) ? "#eef0ec" : "#8b939b");
+  }
+  // An open file is named above its ring, before its members, so a member can be traced to its file.
+  const small = "11px ui-sans-serif, system-ui, sans-serif";
+  for (const ci of opened) {
+    const c = C[ci];
+    for (let k = c.files ? c.files[0] : 0; k < (c.files ? c.files[0] + c.files[1] : 0); k++) {
+      const f = F[k]; if (!fileOpen(f)) continue;
+      const [sx, sy] = toScreen(f[1], f[2]); put(f[6].split("/").pop(), sx, sy - f[3] * view.k - 8, small, selNode !== null ? "#8b939b" : "#c3c8cd");
+    }
+  }
   // Members are named busiest first: 36 of a cluster with no file level, 12 of each open file.
   // A closed file with room for a name gets its base name and how many it holds.
   const members = (start, limit) => { for (let k = start; k < start + limit; k++) { const n = N[k], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 13, node, selNode !== null ? "#8b939b" : "#d6dad5"); } };
@@ -262,8 +281,6 @@ function drawLabels(opened, closed, lit) {
       else if (f[3] * view.k > 11) { const [sx, sy] = toScreen(f[1], f[2]); put(`${f[6].split("/").pop()} ${f[5]}`, sx, sy, "11px ui-sans-serif, system-ui, sans-serif", selNode !== null ? "#8b939b" : "#c3c8cd"); }
     }
   }
-  const quiet = selNode !== null || selCluster !== null;   // with something selected, only what it ties to keeps a bright name
-  const kept = ci => related.has(ci) || siblings.has(ci);
   const rank = ci => (kept(ci) ? 1e7 : 0) + C[ci].count;
   for (const ci of closed.filter(i => C[i].r * view.k > 11).sort((a, b) => rank(b) - rank(a))) { const c = C[ci], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy, "11px ui-sans-serif, system-ui, sans-serif", !quiet ? "#c3c8cd" : kept(ci) ? "#eef0ec" : "#565d64"); }
 }
@@ -282,6 +299,16 @@ function siblingsOf(clusters, ci) {
 // One row per sibling: its index and the name of the plane it is on.
 function siblingRows(clusters, planes, ci) {
   return siblingsOf(clusters, ci).map(i => [i, planes[clusters[i].plane].name]);
+}
+// Whether a cluster on screen opens. radiusPx is its radius on screen: it must be above ROOM_PX,
+// or above CONTEXT_ROOM_PX when the cluster is what is selected (inContext). medianFilePx is the
+// radius on screen of its median file disc, and must be at least FILE_DOT_PX: a cluster whose files
+// would be dots stays one disc with its name. medianFilePx is null for a cluster with no file
+// level, which opens on its own room alone.
+const ROOM_PX = 42, CONTEXT_ROOM_PX = 16, FILE_DOT_PX = 5;
+function clusterOpens(radiusPx, medianFilePx, inContext) {
+  if (!(radiusPx > (inContext ? CONTEXT_ROOM_PX : ROOM_PX))) return false;
+  return medianFilePx === null || medianFilePx >= FILE_DOT_PX;
 }
 // A curve through control points, after Holten's hierarchical edge bundling (IEEE InfoVis 2006).
 // Each inner control point is first straightened: beta times itself plus 1 - beta times the point
@@ -304,8 +331,10 @@ function route(points, beta, steps) {
 }
 // The control points of a link between two nodes: the centres of the groups it leaves, then of
 // those it enters. nodeFile holds each node's row in files, or -1 where its cluster has no file level.
+// Two members of one file have no group to leave or enter: the two nodes only, a straight line.
 function hops(a, b, nodes, nodeFile, nodeCluster, files, clusters) {
   const out = [[nodes[a][0], nodes[a][1]]], fa = nodeFile[a], fb = nodeFile[b], ca = nodeCluster[a], cb = nodeCluster[b];
+  if (fa >= 0 && fa === fb) return [out[0], [nodes[b][0], nodes[b][1]]];
   if (fa >= 0) out.push([files[fa][1], files[fa][2]]);
   if (ca !== cb) out.push([clusters[ca].x, clusters[ca].y], [clusters[cb].x, clusters[cb].y]);
   if (fb >= 0) out.push([files[fb][1], files[fb][2]]);

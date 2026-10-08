@@ -155,6 +155,11 @@ class Routes(unittest.TestCase):
         self.assertEqual(self.hops("a1", "b0"),
                          [self.at("a1"), self.centre_of_file("a1"), self.centre_of_file("b0"), self.at("b0")])
 
+    def test_hops_between_two_definitions_of_one_file_are_the_two_nodes(self):
+        self.assertEqual(self.file_of[self.node["store0"]], self.file_of[self.node["store1"]])
+        self.assertNotEqual(self.file_of[self.node["store0"]], -1)
+        self.assertEqual(self.hops("store0", "store1"), [self.at("store0"), self.at("store1")])
+
     def test_hops_from_a_cluster_with_no_file_level_skip_the_file(self):
         self.assertEqual(self.file_of[self.node["test0"]], -1)
         self.assertEqual(self.hops("test0", "store0"),
@@ -178,6 +183,32 @@ class Routes(unittest.TestCase):
         self.assertEqual(across, [start, middle(store), middle(tests), [cl[tests]["x"], cl[tests]["y"]]])
         along = run(f"bandHops(D.start, {store}, {ops}, D.clusters, D.planes)", self.data)
         self.assertEqual(along, [start, [cl[ops]["x"], cl[ops]["y"]]])
+
+
+class Opens(unittest.TestCase):
+    """When a cluster opens: room for itself and, where it has a file level, for its median file.
+    The room threshold is 42 px, or 16 px for what is selected; the median file needs 5 px."""
+
+    def opens(self, radius, median, context):
+        return run(f"clusterOpens({radius}, {json.dumps(median)}, {json.dumps(context)})", {})
+
+    def test_room_for_the_cluster_is_not_enough_when_its_files_are_dots(self):
+        self.assertIs(self.opens(50, 4, False), False)
+        self.assertIs(self.opens(50, 6, False), True)
+        self.assertIs(self.opens(50, 5, False), True)    # at least 5
+        self.assertIs(self.opens(30, 4, True), False)    # what is selected needs 16 px, and its files still need 5
+        self.assertIs(self.opens(30, 6, True), True)
+
+    def test_below_the_room_threshold_it_is_closed_whatever_the_file_size(self):
+        for median in (4, 6, 500):
+            self.assertIs(self.opens(30, median, False), False)
+            self.assertIs(self.opens(42, median, False), False)    # above, not at
+            self.assertIs(self.opens(16, median, True), False)
+
+    def test_a_cluster_with_no_file_level_opens_when_its_room_holds(self):
+        self.assertIs(self.opens(50, None, False), True)
+        self.assertIs(self.opens(30, None, False), False)
+        self.assertIs(self.opens(30, None, True), True)
 
 
 if __name__ == "__main__":

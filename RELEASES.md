@@ -5,10 +5,15 @@
 The view has three levels, and links between groups are curves.
 
 - **Cluster, file, definition, each opened by room on screen.** A cluster opens when its radius
-  on screen is above 42 px (16 px when it is the selection). A parsed-code cluster that holds two
+  on screen is above 42 px (16 px when it is the selection) and, where it has a file level, its
+  median file disc is at least 5 px on screen (`clusterOpens`): a cluster whose files would be
+  dots under a knot of lines stays one disc with its name. An open cluster keeps its name at the
+  top of its ring, whether or not anything is selected. A parsed-code cluster that holds two
   or more files then shows one disc per file, largest at the centre, each named with its base
   name and member count once its radius on screen is above 11 px. A file opens into its
-  definitions when its radius on screen is above 26 px. A cluster of one file, and every cluster
+  definitions when its radius on screen is above 26 px, which for a one-definition file is above
+  zoom 1.02; an open file has a faint ring at its disc's radius and its base name above the
+  ring, so any visible member can be traced to its file. A cluster of one file, and every cluster
   on an asset plane (where a member already is a file), opens straight into its members as
   before. `scripts/graph_view.py` computes the file level once: `file_groups` orders a cluster's
   files and members, the discs are packed by `place_without_overlap` (which now takes its gap),
@@ -21,7 +26,8 @@ The view has three levels, and links between groups are curves.
   node, the centre of its file, the centre of its cluster when the clusters differ, and the same
   on the way in; each inner control point is moved 0.85 of the way from the straight line to
   itself, and the Bezier curve over them is drawn as 16 segments. A link between two open files
-  of one cluster is such a curve; inside one open file it is straight, as before. Where a file
+  of one cluster is such a curve; between two members of one file it is straight, as before
+  (`hops` returns the two nodes only). Where a file
   is closed its links are not drawn singly: each pair of files gets one straight line between
   the two centres, stronger for more links. A selected node's links to nodes on show follow
   their routes. A selection's band to a cluster on another plane is routed through the centres
@@ -36,23 +42,28 @@ The view has three levels, and links between groups are curves.
 - Tests: `tests/test_view.py` class `Files`, 7 cases on the file rows (they cover a cluster's
   nodes exactly, each row is one file, members inside their file's disc, no two discs of a
   cluster overlap, every disc inside its cluster, none where there is one file). `tests/test_viewer.py`
-  class `Routes`, 9 cases run under node on `route`, `hops` and `bandHops`.
-- First values, to be judged by eye: 26 px, 0.85, 16 segments, a pad of 10 and a gap of 8
-  around a file disc; 12 member names per open file. A link between two definitions of one file
-  that is drawn as the selected node's own is routed through that file's centre, as the control
-  points say; quads of a routed band overlap a little at each bend.
+  class `Routes`, 10 cases run under node on `route`, `hops` and `bandHops`, and class `Opens`,
+  3 cases on `clusterOpens`.
+- Measured by a customer who drove the view in Chromium on the kept 21,328-node run, at 1600 by
+  1000 under software GL: time inside draw over 40 moving frames, this branch against master
+  83ae4b4 on the same selection. Whole view 1.24 against 0.9 ms mean. A cluster as a click
+  frames it 5.52 against 2.37 ms mean, 7.3 against 3.0 ms worst. Worst single frame in a
+  14-zoom sweep 8.6 ms. Frame pacing 16.5 to 16.7 ms on both, and no frame was dropped. The
+  figures are of the commit before the ring, the names and the median-file rule were added;
+  those were not re-measured.
+- First values, to be judged by eye: 26 px, 0.85, 16 segments, 5 px for the median file, a pad
+  of 10 and a gap of 8 around a file disc; 12 member names per open file. Quads of a routed
+  band overlap a little at each bend.
 
 ### Not done
 
-- No frame was looked at or timed in a browser by the engineer. The viewer's script was run
-  under node against a stub canvas on two made-up views (22 and 922 nodes) at nine zooms and
-  selections without an error; that shows it runs, not how it reads. Whether the levels and
-  curves read well, and frame time against the 3.2.0 figures on the 21,328-node run, are
-  unmeasured.
-- With the pointer out of the rule, every cluster on screen with room is open at once; the cost
-  of that on the large run is the first thing to time.
-- An open file has no outline of its own, and a selected node in a closed file is drawn over
-  its file's disc.
+- No frame was looked at or timed in a browser by the engineer; the figures and the pictures
+  the second pass answers are the customer's. The viewer's script was run under node against a
+  stub canvas on two made-up views (22 and 922 nodes) at nine zooms and selections without an
+  error; that shows it runs, not how it reads.
+- No run on a real GPU or at 2560 by 1271.
+- Links between files of one or two members do not visibly gather into strands.
+- A selected node in a closed file is drawn over its file's disc.
 
 ## 3.15.0 (2026-10-08)
 
