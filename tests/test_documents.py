@@ -93,11 +93,12 @@ class DocumentLinks(unittest.TestCase):
                          ["docs/sibling.md", "docs/img/shot.py", "src/app.py", "docs/README.md"])    # in the order named
 
     def test_only_a_path_that_can_be_this_root_s_file_is_linked(self):
-        # Not linked: a bare name that is not beside the document (settings.json, and LICENSE.md at the root); a path
+        # Not linked: a bare name that is not beside the document and is not the root's (settings.json); a path
         # under ~; vendor/LICENSE.md, which shares only its last part with the root's; the site path /img/shot.py and
-        # the other machine's src/app.py, absolute and not under the root. Linked: checkout/src/m00.py by its trailing
-        # parts, as a path written from the folder above the root, and the absolute path under the root.
-        self.assertEqual(self.named_by("docs/sibling.md"), ["src/m00.py", "src/util/paths.py"])
+        # the other machine's src/app.py, absolute and not under the root. Linked: the root's LICENSE.md, because no
+        # other scanned file has that name; checkout/src/m00.py by its trailing parts, as a path written from the
+        # folder above the root, and the absolute path under the root.
+        self.assertEqual(self.named_by("docs/sibling.md"), ["LICENSE.md", "src/m00.py", "src/util/paths.py"])
 
     def test_the_document_s_folder_comes_before_the_root(self):
         self.assertIn("docs/img/shot.py", self.named_by("docs/relative.md"))    # img/shot.py exists at the root too
@@ -114,11 +115,48 @@ class DocumentLinks(unittest.TestCase):
 
     def test_the_counts_reach_the_report(self):
         self.assertEqual(self.graph["graph"]["documents"],
-                         {"documents": 11, "naming": 10, "links": 29, "derived": 5, "left_out": 10})
+                         {"documents": 11, "naming": 10, "links": 30, "derived": 5, "left_out": 10})
         report = ge.render_report(self.graph, "fixture")
         self.assertIn("11 documents, 5 of them derived", report)
-        self.assertIn("10 name at least one scanned file by path. 29 `names` links", report)
+        self.assertIn("10 name at least one scanned file by path. 30 `names` links", report)
         self.assertIn("10 further names in derived documents were left out", report)
+
+
+def files(*ids):
+    return {rel: {"kind": "file"} for rel in ids}
+
+
+class SitePathsAndRootNames(unittest.TestCase):
+    def test_a_page_s_site_path_is_read_against_its_own_folder(self):
+        self.assertEqual(ge.document_targets('<script src="/src/main.tsx">', "site/index.html", files("site/src/main.tsx")),
+                         ["site/src/main.tsx"])
+
+    def test_a_site_path_is_read_against_the_folders_above_the_page(self):
+        self.assertEqual(ge.document_targets('<script src="/src/booth/main.tsx">', "site/booth/index.html",
+                                             files("site/src/booth/main.tsx")), ["site/src/booth/main.tsx"])
+        self.assertEqual(ge.document_targets('<script src="/lib/x.js">', "site/index.html", files("lib/x.js")), ["lib/x.js"])
+
+    def test_the_nearest_folder_wins(self):
+        self.assertEqual(ge.document_targets('<script src="/src/a.ts">', "site/booth/index.html",
+                                             files("site/booth/src/a.ts", "site/src/a.ts")), ["site/booth/src/a.ts"])
+
+    def test_a_site_path_in_a_document_that_is_not_a_page_is_not_followed(self):
+        self.assertEqual(ge.document_targets('<script src="/src/main.tsx">', "site/notes.md", files("site/src/main.tsx")), [])
+
+    def test_a_bare_name_with_one_file_of_that_name_at_the_root_is_that_file(self):
+        self.assertEqual(ge.document_targets("run ws.cmd and read pyproject.toml", "docs/guide.md",
+                                             files("ws.cmd", "pyproject.toml")), ["ws.cmd", "pyproject.toml"])
+
+    def test_a_bare_name_two_files_share_is_not_linked(self):
+        self.assertEqual(ge.document_targets("run ws.cmd and read pyproject.toml", "docs/guide.md",
+                                             files("ws.cmd", "tools/ws.cmd")), [])
+
+    def test_a_bare_name_whose_only_file_is_not_at_the_root_is_not_linked(self):
+        self.assertEqual(ge.document_targets("see settings.json", "docs/guide.md", files("other/settings.json")), [])
+
+    def test_the_file_beside_the_document_still_comes_first(self):
+        self.assertEqual(ge.document_targets("the README.md here", "docs/guide.md", files("docs/README.md", "README.md")),
+                         ["docs/README.md"])
 
 
 class DerivedClusters(unittest.TestCase):
