@@ -100,9 +100,12 @@ _ID_UNSAFE = re.compile(r"[^A-Za-z0-9_-]")
 _BACKSLASHES = re.compile(r"\\{2,}")
 _PATH_TOKEN = re.compile(r"[A-Za-z0-9_.$\\/-]+\.[A-Za-z0-9]{1,5}")
 _DRIVE_ROOT = re.compile(r"^[A-Za-z]:[\\/]*[A-Za-z]?$")
-_TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/.]+$|\.(test|spec)\.[^/]+$")
+_TEST_FILE = re.compile(r"(?i:(^|/)(tests?|__tests__|spec)/)|(^|/)test_[^/]*$|(^|/)conftest\.py$"
+                        r"|[_-]tests?\.[^/.]+$|[a-z0-9]Tests?\.[^/.]+$|\.(test|spec)\.[^/]+$")
 # Code the target holds but did not write: type declarations, vendored and generated files.
 _NOT_OWN = re.compile(r"\.d\.ts$|(^|/)(vendor|vendored|third_party|node_modules|dist|generated)/")
+_NOT_OWN_FOLDER = re.compile(r"(^|/)(vendor|vendored|third_party|node_modules|dist|generated)/")
+_SRC_FOLDER = re.compile(r"(^|/)src/")
 # A test file's name without its extension, and the part of it that names what it tests.
 _TEST_NAME = re.compile(r"^(?:test_(.+)|(.+)_test|(.+)\.(?:test|spec))$")
 OWN, TEST, NOT_OWN = "own", "test", "not written here"
@@ -629,8 +632,16 @@ def is_test(source_file):
 
 
 def not_written_here(source_file, source_class=None):
-    """True for code the target holds but did not write: declarations, vendored and generated files."""
-    return source_class in ("vendor", "generated") or bool(_NOT_OWN.search((source_file or "").replace("\\", "/")))
+    """True for code the target holds but did not write: declarations, vendored and generated files.
+
+    A `.d.ts` in a `src` folder, outside the vendored and generated folders and classes, is hand-written and counts as the target's own.
+    """
+    path = (source_file or "").replace("\\", "/")
+    if source_class in ("vendor", "generated"):
+        return True
+    if path.endswith(".d.ts") and _SRC_FOLDER.search(path) and not _NOT_OWN_FOLDER.search(path):
+        return False
+    return bool(_NOT_OWN.search(path))
 
 
 def code_role(node):

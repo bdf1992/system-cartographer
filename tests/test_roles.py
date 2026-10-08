@@ -197,5 +197,35 @@ class RolePlanes(unittest.TestCase):
         self.assertEqual((view["kinds"][edge[2]], edge[3]), ("uses", 1))
 
 
+class MissedCases(unittest.TestCase):
+    def test_a_tests_folder_in_any_letter_case(self):
+        for rel in ("Tests/Foo.cs", "src/Spec/helper.rb", "pkg/__Tests__/a.js"):
+            self.assertTrue(ge.is_test(rel), rel)
+
+    def test_a_name_ending_in_capital_test_or_tests(self):
+        for rel in ("src/FooTests.cs", "src/FooTest.java"):
+            self.assertTrue(ge.is_test(rel), rel)
+        for rel in ("src/Latest.cs", "src/Attest.cs", "src/contest.py"):
+            self.assertFalse(ge.is_test(rel), rel)
+
+    def test_conftest_outside_a_tests_folder(self):
+        for rel in ("pkg/conftest.py", "conftest.py"):
+            self.assertTrue(ge.is_test(rel), rel)
+        self.assertFalse(ge.is_test("pkg/myconftest.py"))
+
+    def test_a_name_ending_in_hyphen_or_underscore_test_or_tests(self):
+        for rel in ("web/editor-test.cjs", "web/editor-tests.js", "pkg/store_tests.py"):
+            self.assertTrue(ge.is_test(rel), rel)
+        for rel in ("web/latest.js", "pkg/contests.py"):
+            self.assertFalse(ge.is_test(rel), rel)
+
+    def test_a_declaration_file_under_src_is_own(self):
+        self.assertFalse(ge.not_written_here("web/src/env.d.ts"))
+        self.assertEqual(ge.code_role({"source_file": "web/src/env.d.ts"}), ge.OWN)
+        for rel in ("web/types/lib.d.ts", "web/node_modules/p/src/i.d.ts", "web/dist/src/a.d.ts"):
+            self.assertTrue(ge.not_written_here(rel), rel)
+        self.assertTrue(ge.not_written_here("web/src/env.d.ts", "generated"))
+
+
 if __name__ == "__main__":
     unittest.main()
