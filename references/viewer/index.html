@@ -86,7 +86,7 @@ function dyn(arr) { gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYN
 // ---- view, focus, and the one rule for detail ---------------------------------------------------
 let W = 1, H = 1, DPR = 1, dirty = true;
 const view = { x: 0, y: 0, k: 1 }, goal = { x: 0, y: 0, k: 1, on: false }, mouse = { sx: -1e6, sy: -1e6 };
-let selNode = null, selCluster = null, hoverCluster = null, hoverNode = null, context = new Set(), related = new Set();
+let selNode = null, selCluster = null, hoverCluster = null, hoverNode = null, context = new Set(), related = new Set(), siblings = new Set();
 const toScreen = (x, y) => [(x - view.x) * view.k + W / 2, (y - view.y) * view.k + H / 2];
 const toWorld = (sx, sy) => [(sx - W / 2) / view.k + view.x, (sy - H / 2) / view.k + view.y];
 // A cluster shows its members when there is room to read them (its radius on screen) and it is
@@ -154,7 +154,7 @@ function draw() {
   for (const ci of closed) {
     const c = C[ci], col = PLANE_COLOR[c.plane], size = Math.max(4, c.r * 2 * view.k);
     // A disc that fills the screen says less, not more: it fades as it grows.
-    const al = (ci === lit ? 0.8 : !focused ? 0.42 : related.has(ci) ? 0.5 : 0.1) * Math.max(0.28, Math.min(1, 46 / (c.r * view.k)));
+    const al = (ci === lit ? 0.8 : siblings.has(ci) ? 0.8 : !focused ? 0.42 : related.has(ci) ? 0.5 : 0.1) * Math.max(0.28, Math.min(1, 46 / (c.r * view.k)));
     discs.push(c.x, c.y, size, col[0], col[1], col[2], al);
     if (c.claims.length) rings.push(c.x, c.y, size + 10, 0.98, 0.42, 0.38, 0.95);
   }
@@ -203,10 +203,27 @@ function drawLabels(opened, closed, lit) {
   if (lit !== null && lit !== undefined) { const c = C[lit], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy - c.r * view.k - 12, head, "#fff"); }
   for (const ci of opened) { const c = C[ci], limit = Math.min(c.count, 36); for (let k = c.start; k < c.start + limit; k++) { const n = N[k], [sx, sy] = toScreen(n[0], n[1]); put(n[3], sx, sy - 13, node, selNode !== null ? "#8b939b" : "#d6dad5"); } }
   const quiet = selNode !== null || selCluster !== null;   // with something selected, only what it ties to keeps a bright name
-  const rank = ci => (related.has(ci) ? 1e7 : 0) + C[ci].count;
-  for (const ci of closed.filter(i => C[i].r * view.k > 11).sort((a, b) => rank(b) - rank(a))) { const c = C[ci], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy, "11px ui-sans-serif, system-ui, sans-serif", !quiet ? "#c3c8cd" : related.has(ci) ? "#eef0ec" : "#565d64"); }
+  const kept = ci => related.has(ci) || siblings.has(ci);
+  const rank = ci => (kept(ci) ? 1e7 : 0) + C[ci].count;
+  for (const ci of closed.filter(i => C[i].r * view.k > 11).sort((a, b) => rank(b) - rank(a))) { const c = C[ci], [sx, sy] = toScreen(c.x, c.y); put(clusterText(c), sx, sy, "11px ui-sans-serif, system-ui, sans-serif", !quiet ? "#c3c8cd" : kept(ci) ? "#eef0ec" : "#565d64"); }
 }
 const clusterText = c => `${c.name.split(": ").pop()} ${c.count}` + (c.claims.length ? `  ${c.claims.length} claims` : "");
+
+// ---- pure: no DOM, read by tests/test_viewer.py ----
+// The other clusters drawn from the same graphify community, in rising index order; none when the
+// community is null (leftovers, and anything that is not parsed code).
+function siblingsOf(clusters, ci) {
+  const community = clusters[ci].community;
+  if (community === null || community === undefined) return [];
+  const out = [];
+  clusters.forEach((c, i) => { if (i !== ci && c.community === community) out.push(i); });
+  return out;
+}
+// One row per sibling: its index and the name of the plane it is on.
+function siblingRows(clusters, planes, ci) {
+  return siblingsOf(clusters, ci).map(i => [i, planes[clusters[i].plane].name]);
+}
+// ---- end pure ----
 
 // ---- selection ---------------------------------------------------------------------------------------
 const card = document.getElementById("card"), esc = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
@@ -227,9 +244,11 @@ function frameWith(ci, others) {
   fly(k > least ? (x0 + x1) / 2 : c.x, k > least ? (y0 + y1) / 2 : c.y, k);
 }
 function selectCluster(ci) {
-  selCluster = ci; selNode = null; context = new Set([ci]); related = new Set(clusterLinks[ci].slice(0, TIES).map(l => l[0])); const c = C[ci];
+  selCluster = ci; selNode = null; context = new Set([ci]); related = new Set(clusterLinks[ci].slice(0, TIES).map(l => l[0])); siblings = new Set(siblingsOf(C, ci)); const c = C[ci];
+  const rows = siblingRows(C, P, ci);
   card.style.display = "block";
   card.innerHTML = `<b>${esc(c.name)}</b><div class="m">${c.count} members on ${esc(P[c.plane].name)}</div>` + (c.claims.length ? `<h4>Claims</h4>${c.claims.map(x => `<div>${esc(x)}</div>`).join("")}` : "") +
+    (rows.length ? `<h4>Other parts of this group</h4>` + rows.map(([o, name]) => `<div class="nb" data-c="${o}">${esc(clusterText(C[o]))}<small>${esc(name)}</small></div>`).join("") : "") +
     `<h4>Linked most to</h4>` + clusterLinks[ci].slice(0, 12).map(([o, n]) => `<div class="nb" data-c="${o}">${esc(clusterText(C[o]))}<small>${n} links</small></div>`).join("");
   frameWith(ci, [...related]);
 }
@@ -240,13 +259,13 @@ function selectNode(i) {
   const mine = edgesOf.get(i) || [], usedBy = [...new Set(mine.filter(ei => E[ei][1] === i && E[ei][2] !== 3).map(ei => E[ei][0]))], uses = [...new Set(mine.filter(ei => E[ei][0] === i && E[ei][2] !== 3).map(ei => E[ei][1]))];
   const listOf = (title, list) => list.length ? `<h4>${title} ${list.length}</h4>` + list.sort((a, b) => N[b][2] - N[a][2]).slice(0, 60).map(j => `<div class="nb" data-n="${j}">${esc(N[j][3])}<small>${esc(N[j][5].split("/").pop())}</small></div>`).join("") : "";
   const ties = nodeTies(i).map(t => t[0]);
-  context = new Set([selCluster]); related = new Set(ties);
+  context = new Set([selCluster]); related = new Set(ties); siblings = new Set();
   card.style.display = "block";
   card.innerHTML = `<b>${esc(n[3])}</b><div class="m">${esc(n[4])}${n[5] ? " in " + esc(n[5]) : ""}</div><div class="m">${n[2]} links${n[6] ? ", " + n[6] + " lint findings" : ""}</div><div class="nb m" data-c="${selCluster}">${esc(clusterText(c))}</div>` +
     listOf("Used by", usedBy) + listOf("Uses", uses);
   frameWith(selCluster, ties);
 }
-function clearSelection() { selNode = selCluster = null; context = new Set(); related = new Set(); card.style.display = "none"; dirty = true; }
+function clearSelection() { selNode = selCluster = null; context = new Set(); related = new Set(); siblings = new Set(); card.style.display = "none"; dirty = true; }
 card.addEventListener("click", e => { const el = e.target.closest(".nb"); if (!el) return; if (el.dataset.n) selectNode(+el.dataset.n); else selectCluster(+el.dataset.c); });
 
 // ---- input -------------------------------------------------------------------------------------------
@@ -287,6 +306,7 @@ function loop() {
 }
 window.__test = {
   focusCluster: name => selectCluster(C.findIndex(c => c.name.includes(name))),
+  siblings: name => siblingsOf(C, C.findIndex(c => c.name.includes(name))),
   selectNode: label => selectNode(N.findIndex(n => n[3] === label)),
   nudge: i => { goal.on = false; view.x += Math.sin(i / 6) * 30 / view.k; view.k *= 1 + Math.cos(i / 5) * 0.03; dirty = true; },
 };

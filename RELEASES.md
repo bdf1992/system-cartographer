@@ -1,5 +1,20 @@
 # Releases
 
+## 3.15.0 (2026-10-08)
+
+The viewer reads the `community` field of data.js.
+
+- **Selecting a cluster keeps its siblings bright and names them.** The other clusters with the
+  same `community` (the parts of one graphify community on other planes) are drawn at the lit
+  disc's strength and keep a bright name, as the clusters it links to do. The card gains a section
+  `Other parts of this group` with one row per sibling, giving its name and plane; a click on a
+  row selects that cluster. A cluster with no community, or whose community is drawn once, has
+  none. Selecting a node lights none. Nothing opens or flies.
+- **The first viewer test.** `tests/test_viewer.py` runs the marked data-logic block of
+  `references/viewer/index.html` under node, so it needs `node` on PATH and fails without it.
+- The change was not looked at in a browser by the engineer; brightness and the card are
+  unchecked by eye.
+
 ## 3.14.0 (2026-10-08)
 
 Two kinds of reference that 3.11.0 named as unlinked are now read: a site path in an HTML
